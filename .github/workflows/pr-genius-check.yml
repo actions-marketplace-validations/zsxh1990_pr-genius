@@ -49,7 +49,7 @@ jobs:
           DIFF_STAT: ${{ steps.diff.outputs.stat }}
         run: |
           # Write PR body to temp file to avoid shell injection
-          # (matches the safe pattern in .github/actions/pr-genius-check/action.yml)
+          # (matches the safe pattern in root action.yml)
           echo "$PR_BODY" > /tmp/pr_body.txt
 
           # Run coach — pass body via file to avoid shell escaping issues

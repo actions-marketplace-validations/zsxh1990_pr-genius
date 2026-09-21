@@ -223,7 +223,7 @@ features/ + predictions/                                    ← ML pipeline outp
 | L16 | Hardcoded `/tmp/` output path | `scripts/heartbeat.py:33` |
 | L17 | Hardcoded 30-repo list | `scripts/daily_content_expand.py:36-77` |
 | L18 | `cross_validate.py` destructive sys.modules manipulation | `scripts/cross_validate.py:30-33` |
-| L19 | action.yml uses setup-python@v5 while workflows use @v7 | `.github/actions/pr-genius-check/action.yml:57` |
+| L19 | action.yml uses setup-python@v5 while workflows use @v7 | `action.yml:60` |
 | L20 | No `.dockerignore` — bloated build context | Repo root |
 | L21 | GitHub Action Dockerfile runs as root | `Dockerfile.github_action:12` |
 | L22 | Hardcoded profile directory names in Dockerfile | `Dockerfile:37-43` |
