@@ -264,16 +264,39 @@ def iter_case_studies(repo_root: str | Path) -> Iterator[dict]:
             yield loaded
 
 
+_profile_index_cache: dict[str, dict[str, dict]] = {}
+
+
+def clear_profile_cache(repo_root: str | Path | None = None) -> None:
+    """Clear the profile index cache. Pass repo_root for a specific tree, or None for all."""
+    if repo_root is None:
+        _profile_index_cache.clear()
+    else:
+        _profile_index_cache.pop(str(Path(repo_root).resolve()), None)
+
+
+def _build_profile_index(repo_root: str | Path) -> dict[str, dict]:
+    """Build an O(1) lookup index keyed by lowered folder name and repo path."""
+    root_str = str(Path(repo_root).resolve())
+    if root_str in _profile_index_cache:
+        return _profile_index_cache[root_str]
+    idx: dict[str, dict] = {}
+    for profile in iter_profiles(repo_root):
+        folder_key = profile["folder"].lower()
+        idx[folder_key] = profile
+        repo_key = profile["frontmatter"].get("repo", "").strip("/").lower()
+        if repo_key and repo_key not in idx:
+            idx[repo_key] = profile
+    _profile_index_cache[root_str] = idx
+    return idx
+
+
 def profile_get(repo_root: str | Path, repo: str) -> dict | None:
-    """Look up a Repo Profile by `org/name`. None if missing."""
+    """Look up a Repo Profile by `org/name`. None if missing. O(1) via index."""
     target = repo.strip("/").lower()
     target_folder = target.replace("/", "-")
-    for profile in iter_profiles(repo_root):
-        if profile["folder"].lower() == target_folder:
-            return profile
-        if profile["frontmatter"].get("repo", "").strip("/").lower() == target:
-            return profile
-    return None
+    idx = _build_profile_index(repo_root)
+    return idx.get(target_folder) or idx.get(target)
 
 
 def schema_info() -> dict:

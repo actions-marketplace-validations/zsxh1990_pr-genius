@@ -10,7 +10,7 @@ Public surface:
 - schema_info() — return supported OKF schema versions
 """
 
-from .parser import load, iter_profiles, iter_case_studies, profile_get, schema_info
+from .parser import load, iter_profiles, iter_case_studies, profile_get, schema_info, clear_profile_cache
 
 __version__ = "1.9.0"
 __all__ = [
@@ -20,4 +20,5 @@ __all__ = [
     "iter_case_studies",
     "profile_get",
     "schema_info",
+    "clear_profile_cache",
 ]
