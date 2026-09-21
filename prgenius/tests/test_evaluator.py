@@ -1,6 +1,9 @@
 """Tests for evaluator module (Phase 6.1)."""
 
+import os
+import time
 import pytest
+import tempfile
 from pathlib import Path
 
 from prgenius.evaluator import (
@@ -10,6 +13,8 @@ from prgenius.evaluator import (
     _parse_label,
     analyze_pr,
     eval_pr,
+    load_anti_patterns,
+    _anti_patterns_cache,
 )
 
 
@@ -312,3 +317,96 @@ class TestEvalPr:
             assert tier_display == "中风险"
         elif tier_raw == "high_risk":
             assert tier_display == "高风险"
+
+
+class TestCacheInvalidation:
+    """Test that pattern caches invalidate when files change on disk."""
+
+    ANTI_PATTERN_TEMPLATE = """---
+key: {key}
+trigger_keywords:
+  - {keyword}
+symptom: {symptom}
+fix_action: fix it
+---
+"""
+
+    def _make_repo(self, tmpdir, key="test-pattern", keyword="badcode", symptom="bad code"):
+        """Create a minimal repo structure with one anti-pattern file."""
+        anti_dir = Path(tmpdir) / "anti-patterns"
+        anti_dir.mkdir(exist_ok=True)
+        pattern_file = anti_dir / f"{key}.md"
+        pattern_file.write_text(
+            self.ANTI_PATTERN_TEMPLATE.format(key=key, keyword=keyword, symptom=symptom),
+            encoding="utf-8",
+        )
+        return Path(tmpdir)
+
+    def test_cache_returns_same_object_on_no_change(self):
+        """Cache hit should return the same dict (identity check)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = self._make_repo(tmpdir)
+            cache_key = str(repo_root)
+            _anti_patterns_cache.pop(cache_key, None)
+
+            result1 = load_anti_patterns(repo_root)
+            result2 = load_anti_patterns(repo_root)
+            assert result1 is result2  # same object = cache hit
+
+    def test_cache_invalidates_on_file_mtime_change(self):
+        """When a pattern file is modified, the next load should pick it up."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = self._make_repo(tmpdir, key="mtime-test", keyword="oldkword")
+            cache_key = str(repo_root)
+            _anti_patterns_cache.pop(cache_key, None)
+
+            result1 = load_anti_patterns(repo_root)
+            assert "mtime-test" in result1
+            assert "oldkword" in result1["mtime-test"].get("trigger_keywords", [])
+
+            # Force cache to expire by setting load_time to 0
+            entry = _anti_patterns_cache[cache_key]
+            assert isinstance(entry, tuple) and len(entry) == 3
+            patterns, mtimes, _ = entry
+            _anti_patterns_cache[cache_key] = (patterns, mtimes, 0.0)
+
+            # Modify the pattern file
+            pattern_file = repo_root / "anti-patterns" / "mtime-test.md"
+            pattern_file.write_text(
+                self.ANTI_PATTERN_TEMPLATE.format(key="mtime-test", keyword="newkword", symptom="new symptom"),
+                encoding="utf-8",
+            )
+            os.utime(pattern_file, (time.time() + 10, time.time() + 10))
+
+            # Next load should pick up the change
+            result2 = load_anti_patterns(repo_root)
+            assert result2 is not result1
+            assert "newkword" in result2["mtime-test"].get("trigger_keywords", [])
+
+    def test_cache_invalidates_on_new_file_added(self):
+        """When a new pattern file is added, the next load should include it."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = self._make_repo(tmpdir, key="existing", keyword="exists")
+            cache_key = str(repo_root)
+            _anti_patterns_cache.pop(cache_key, None)
+
+            result1 = load_anti_patterns(repo_root)
+            assert "existing" in result1
+            assert "added-later" not in result1
+
+            # Force cache to expire
+            entry = _anti_patterns_cache[cache_key]
+            assert isinstance(entry, tuple) and len(entry) == 3
+            patterns, mtimes, _ = entry
+            _anti_patterns_cache[cache_key] = (patterns, mtimes, 0.0)
+
+            # Add a new pattern file
+            new_file = repo_root / "anti-patterns" / "added-later.md"
+            new_file.write_text(
+                self.ANTI_PATTERN_TEMPLATE.format(key="added-later", keyword="newthing", symptom="new thing"),
+                encoding="utf-8",
+            )
+
+            result2 = load_anti_patterns(repo_root)
+            assert "existing" in result2
+            assert "added-later" in result2
