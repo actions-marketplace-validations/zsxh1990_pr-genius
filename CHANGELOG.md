@@ -14,6 +14,21 @@ GitHub tag/release compare links per Keep a Changelog guidance.
 - **Git Tag**：仓库标签
 - **Milestone**：功能里程碑（可能跨多个 tag）
 
+## [1.9.0] — GitHub Marketplace Launch
+
+### Added
+- **GitHub Marketplace**: Root `action.yml` for one-click Marketplace install
+  - Use `uses: zsxh1990/pr-genius@v1` instead of nested path
+  - Branding: check-circle / green
+  - Published as "PR Genius Advisor" on GitHub Marketplace
+
+### Fixed
+- **Version alignment**: pyproject.toml + glama.json + CHANGELOG aligned on 1.9.0
+- **AUDIT_REPORT_20260905.md**: Added missing frontmatter (validate CI gate)
+- **CI hardening**: Pin mcp<2.0 for API compat, Python 3.9 `__future__` annotations
+- **Audit improvements**: Security, tests, CI, and docs (4 critical, 22 high addressed)
+- **Orphan cleanup**: Archived orphan anti-patterns, fixed dead links
+
 ## [1.8.0] — comment_mode PR Comment Feature
 
 ### Added
