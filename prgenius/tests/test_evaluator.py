@@ -239,6 +239,44 @@ class TestAnalyzePr:
         keys = [s["key"] for s in signals]
         assert "first_contributor" in keys
 
+    def test_diff_stat_xl_classification(self):
+        """PR with large diff_stat should be XL regardless of title."""
+        result = analyze_pr(
+            title="fix: typo",
+            description="Fix typo",
+            repo="org/repo",
+            repo_root=REPO_ROOT,
+            body="Fixes #1",
+            diff_stat="25 files changed, 600 insertions(+), 200 deletions(-)",
+        )
+        assert result["pr_size"] == "XL"
+        assert "800" in result["pr_size_label"]
+
+    def test_diff_stat_xs_classification(self):
+        """PR with small diff_stat should be XS regardless of title."""
+        result = analyze_pr(
+            title="feat: major refactor and rewrite",
+            description="Big changes",
+            repo="org/repo",
+            repo_root=REPO_ROOT,
+            body="",
+            diff_stat="1 file changed, 10 insertions(+), 5 deletions(-)",
+        )
+        assert result["pr_size"] == "XS"
+        assert "15" in result["pr_size_label"]
+
+    def test_no_diff_stat_falls_back_to_title(self):
+        """Without diff_stat, should fall back to title heuristic."""
+        result = analyze_pr(
+            title="feat: major refactor and rewrite",
+            description="Big changes",
+            repo="org/repo",
+            repo_root=REPO_ROOT,
+            body="",
+        )
+        assert result["pr_size"] == "XL"
+        assert "标题暗示" in result["pr_size_label"]
+
 
 class TestEvalPr:
     """Test eval_pr (compatibility layer)."""

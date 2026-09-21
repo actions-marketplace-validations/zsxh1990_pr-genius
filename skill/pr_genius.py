@@ -135,6 +135,7 @@ def main() -> None:
     ap.add_argument("--repo-merge-rate", type=float, default=0.0)
     ap.add_argument("--author-association", default="NONE")
     ap.add_argument("--mergeable", default="MERGEABLE")
+    ap.add_argument("--diff-stat", default="")
     ap.add_argument("--format", "-f", choices=["text", "json"], default="text")
 
     # eval (compat)
@@ -161,6 +162,7 @@ def main() -> None:
     ch.add_argument("--repo-merge-rate", type=float, default=0.0)
     ch.add_argument("--author-association", default="NONE")
     ch.add_argument("--mergeable", default="MERGEABLE")
+    ch.add_argument("--diff-stat", default="")
     ch.add_argument("--format", "-f", choices=["text", "json"], default="text")
 
     # describe (unique to skill file)
@@ -179,6 +181,7 @@ def main() -> None:
             star_count=args.star_count or 0, repo_merge_rate=args.repo_merge_rate or 0.0,
             author_association=args.author_association or "NONE",
             mergeable=args.mergeable or "MERGEABLE",
+            diff_stat=args.diff_stat or "",
         )
         if args.format == "json":
             print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -217,6 +220,7 @@ def main() -> None:
             star_count=args.star_count or 0, repo_merge_rate=args.repo_merge_rate or 0.0,
             author_association=args.author_association or "NONE",
             mergeable=args.mergeable or "MERGEABLE",
+            diff_stat=args.diff_stat or "",
         )
         tier = result["tier"]
         icon = TIER_ICONS.get(tier, "⚪")

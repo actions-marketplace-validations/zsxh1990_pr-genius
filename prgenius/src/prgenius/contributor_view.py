@@ -255,6 +255,7 @@ def contributor_view(
         body=body, labels=labels or [], author=author,
         star_count=star_count, repo_merge_rate=repo_merge_rate,
         author_association=author_association,
+        diff_stat=diff_stat,
     )
 
     impact = assess_impact(title, body, diff_stat)

@@ -738,6 +738,7 @@ def _classify_tier_and_pr_size(
     signals_pos: List[dict],
     signals_neg: List[dict],
     signals_neu: List[dict],
+    diff_stat: str = "",
 ) -> Tuple[str, str, str, int, str, str]:
     """计算风险等级和 PR 大小评估。
 
@@ -766,30 +767,48 @@ def _classify_tier_and_pr_size(
 
     # ---- 8.5. PR 大小评估 ----
     from .pr_metadata import parse_diff_stat, assess_scope, detect_breaking_change, detect_security_sensitive
-    files_changed, lines_added, lines_deleted = parse_diff_stat("")
+    files_changed, lines_added, lines_deleted = parse_diff_stat(diff_stat)
     total_lines = lines_added + lines_deleted
 
-    # PR 大小分级 (基于标题关键词启发式)
+    # PR 大小分级: 优先使用实际 diff_stat，回退到标题关键词启发式
     title_lower = title.lower()
     body_lower = body.lower() if body else ""
     combined = f"{title_lower} {body_lower}"
 
-    # 启发式判断 PR 大小
-    if any(kw in combined for kw in ["major", "refactor", "rewrite", "migration", "breaking"]):
-        pr_size = "XL"
-        pr_size_label = "超大 (>500 行) — 标题暗示大规模变更"
-    elif any(kw in combined for kw in ["add", "implement", "feature", "enhance"]):
-        pr_size = "M"
-        pr_size_label = "中等 (150-300 行) — 新功能"
-    elif any(kw in combined for kw in ["fix", "bug", "patch", "hotfix"]):
-        pr_size = "S"
-        pr_size_label = "小 (50-150 行) — Bug 修复"
-    elif any(kw in combined for kw in ["docs", "readme", "typo", "comment"]):
-        pr_size = "XS"
-        pr_size_label = "极小 (<50 行) — 文档/注释"
+    if total_lines > 0:
+        # 基于实际 diff_stat 的行数分级
+        if total_lines > 500 or files_changed > 20:
+            pr_size = "XL"
+            pr_size_label = f"超大 ({total_lines} 行, {files_changed} 文件)"
+        elif total_lines > 300 or files_changed > 10:
+            pr_size = "L"
+            pr_size_label = f"大 ({total_lines} 行, {files_changed} 文件)"
+        elif total_lines > 150 or files_changed > 5:
+            pr_size = "M"
+            pr_size_label = f"中等 ({total_lines} 行, {files_changed} 文件)"
+        elif total_lines > 50:
+            pr_size = "S"
+            pr_size_label = f"小 ({total_lines} 行, {files_changed} 文件)"
+        else:
+            pr_size = "XS"
+            pr_size_label = f"极小 ({total_lines} 行, {files_changed} 文件)"
     else:
-        pr_size = "S"
-        pr_size_label = "小 (50-150 行)"
+        # 回退: 基于标题关键词启发式 (无 diff_stat 时)
+        if any(kw in combined for kw in ["major", "refactor", "rewrite", "migration", "breaking"]):
+            pr_size = "XL"
+            pr_size_label = "超大 (>500 行) — 标题暗示大规模变更"
+        elif any(kw in combined for kw in ["add", "implement", "feature", "enhance"]):
+            pr_size = "M"
+            pr_size_label = "中等 (150-300 行) — 新功能"
+        elif any(kw in combined for kw in ["fix", "bug", "patch", "hotfix"]):
+            pr_size = "S"
+            pr_size_label = "小 (50-150 行) — Bug 修复"
+        elif any(kw in combined for kw in ["docs", "readme", "typo", "comment"]):
+            pr_size = "XS"
+            pr_size_label = "极小 (<50 行) — 文档/注释"
+        else:
+            pr_size = "S"
+            pr_size_label = "小 (50-150 行)"
 
     # 影响评分 (0-100)
     impact_score = 0
@@ -1002,6 +1021,7 @@ def analyze_pr(
     repo_merge_rate: float = 0.0,
     author_association: str = "NONE",
     mergeable: str = "MERGEABLE",
+    diff_stat: str = "",
 ) -> dict:
     """分析 PR 并生成结构化改进建议
 
@@ -1049,6 +1069,7 @@ def analyze_pr(
         _classify_tier_and_pr_size(
             title=title, body=body, labels=labels,
             signals_pos=signals_pos, signals_neg=signals_neg, signals_neu=signals_neu,
+            diff_stat=diff_stat,
         )
     )
 
