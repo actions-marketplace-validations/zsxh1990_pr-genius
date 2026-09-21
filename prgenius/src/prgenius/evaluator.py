@@ -117,25 +117,19 @@ def _check_requires_dco(repo: str, repo_root) -> Optional[bool]:
         False — requires_dco: false
         None  — 未找到 profile 或未声明
     """
-    # v1.4.0 修复: 接受 str | Path
+    from .parser import load
     repo_root = Path(repo_root) if not isinstance(repo_root, Path) else repo_root
-    # 尝试加载仓库 profile
     target_folder = repo.replace("/", "-").lower()
-    profile_dir = repo_root / "profiles" / target_folder
-    index_file = profile_dir / "index.md"
+    index_file = repo_root / "profiles" / target_folder / "index.md"
     if not index_file.exists():
         return None
 
     try:
-        content = index_file.read_text(encoding="utf-8")
-        match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
-        if not match:
-            return None
-        # 简单搜索 requires_dco 字段
-        for line in match.group(1).split("\n"):
-            line = line.strip()
-            if line.startswith("requires_dco:") or line.startswith("require_signed_off:"):
-                value = line.split(":", 1)[1].strip().lower()
+        loaded = load(index_file)
+        fm = loaded["frontmatter"]
+        for key in ("requires_dco", "require_signed_off"):
+            if key in fm:
+                value = str(fm[key]).strip().lower()
                 if value in ("true", "yes"):
                     return True
                 elif value in ("false", "no"):
@@ -153,7 +147,7 @@ def _check_require_issue_first(repo: str, repo_root) -> Optional[bool]:
         False — require_issue_first: false
         None  — 未找到 profile 或未声明
     """
-    # v1.4.0 修复: 接受 str | Path
+    from .parser import load
     repo_root = Path(repo_root) if not isinstance(repo_root, Path) else repo_root
     target_folder = repo.replace("/", "-").lower()
     index_file = repo_root / "profiles" / target_folder / "index.md"
@@ -161,14 +155,11 @@ def _check_require_issue_first(repo: str, repo_root) -> Optional[bool]:
         return None
 
     try:
-        content = index_file.read_text(encoding="utf-8")
-        match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
-        if not match:
-            return None
-        for line in match.group(1).split("\n"):
-            line = line.strip()
-            if line.startswith("require_issue_first:") or line.startswith("require_issue_first :"):
-                value = line.split(":", 1)[1].strip().lower()
+        loaded = load(index_file)
+        fm = loaded["frontmatter"]
+        for key in ("require_issue_first",):
+            if key in fm:
+                value = str(fm[key]).strip().lower()
                 if value in ("true", "yes"):
                     return True
                 elif value in ("false", "no"):
@@ -224,41 +215,16 @@ def load_anti_patterns(repo_root) -> Dict[str, dict]:
     if not anti_patterns_dir.exists():
         return patterns
 
+    from .parser import extract_frontmatter_text, _parse_simple_frontmatter
     for file in anti_patterns_dir.glob("*.md"):
         if file.name == "README.md":
             continue
-        content = file.read_text(encoding="utf-8")
-        match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
-        if not match:
-            continue
         try:
-            fm = {}
-            current_key = None
-            current_value = []
-            in_list = False
-            for line in match.group(1).strip().split("\n"):
-                if re.match(r'^[a-zA-Z_]+:', line) and not line.startswith('  '):
-                    if current_key:
-                        fm[current_key] = current_value if in_list else ' '.join(current_value).strip()
-                    key, value = line.split(":", 1)
-                    current_key = key.strip()
-                    value = value.strip()
-                    if value == '':
-                        current_value = []
-                        in_list = True
-                    elif value.startswith('['):
-                        current_value = [v.strip().strip('"') for v in value[1:-1].split(",")]
-                        in_list = False
-                    else:
-                        current_value = [value]
-                        in_list = False
-                elif line.startswith('  - ') and in_list:
-                    current_value.append(line[4:].strip().strip('"'))
-                elif line.startswith('  ') and not in_list:
-                    current_value.append(line.strip())
-            if current_key:
-                fm[current_key] = current_value if in_list else ' '.join(current_value).strip()
-            patterns[file.stem] = fm
+            content = file.read_text(encoding="utf-8")
+            fm_text = extract_frontmatter_text(content)
+            if not fm_text:
+                continue
+            patterns[file.stem] = _parse_simple_frontmatter(fm_text)
         except Exception:
             continue
 
@@ -396,41 +362,16 @@ def load_success_patterns(repo_root) -> Dict[str, dict]:
     success_patterns_dir = repo_root / "success-patterns"
     if not success_patterns_dir.exists():
         return patterns
+    from .parser import extract_frontmatter_text, _parse_simple_frontmatter
     for file in success_patterns_dir.glob("*.md"):
         if file.name == "README.md":
             continue
-        content = file.read_text(encoding="utf-8")
-        match = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
-        if not match:
-            continue
         try:
-            fm = {}
-            current_key = None
-            current_value = []
-            in_list = False
-            for line in match.group(1).strip().split("\n"):
-                if re.match(r'^[a-zA-Z_]+:', line) and not line.startswith('  '):
-                    if current_key:
-                        fm[current_key] = current_value if in_list else ' '.join(current_value).strip()
-                    key, value = line.split(":", 1)
-                    current_key = key.strip()
-                    value = value.strip()
-                    if value == '':
-                        current_value = []
-                        in_list = True
-                    elif value.startswith('['):
-                        current_value = [v.strip().strip('"') for v in value[1:-1].split(",")]
-                        in_list = False
-                    else:
-                        current_value = [value]
-                        in_list = False
-                elif line.startswith('  - ') and in_list:
-                    current_value.append(line[4:].strip().strip('"'))
-                elif line.startswith('  ') and not in_list:
-                    current_value.append(line.strip())
-            if current_key:
-                fm[current_key] = current_value if in_list else ' '.join(current_value).strip()
-            patterns[file.stem] = fm
+            content = file.read_text(encoding="utf-8")
+            fm_text = extract_frontmatter_text(content)
+            if not fm_text:
+                continue
+            patterns[file.stem] = _parse_simple_frontmatter(fm_text)
         except Exception:
             continue
 
