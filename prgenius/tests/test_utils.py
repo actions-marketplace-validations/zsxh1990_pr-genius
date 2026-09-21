@@ -1,9 +1,26 @@
 """Tests for utils module."""
 
+import os
 import pytest
 from pathlib import Path
+from unittest.mock import patch
 
-from prgenius.utils import classify_pr, extract_signals
+from prgenius.utils import classify_pr, extract_signals, get_repo_root
+
+
+class TestGetRepoRoot:
+    """Test repo root resolution."""
+
+    def test_finds_knowledge_bundle_markers(self):
+        """get_repo_root() should return a path containing anti-patterns/."""
+        root = get_repo_root()
+        assert (root / "anti-patterns").is_dir()
+        assert (root / "success-patterns").is_dir()
+
+    def test_returns_path_object(self):
+        """get_repo_root() should return a Path."""
+        result = get_repo_root()
+        assert isinstance(result, Path)
 
 
 class TestClassifyPr:
