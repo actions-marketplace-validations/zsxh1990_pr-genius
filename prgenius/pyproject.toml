@@ -39,3 +39,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 prgenius = ["py.typed"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
