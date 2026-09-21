@@ -124,12 +124,12 @@ class TestAntiPatternMatching:
         """Should load anti-patterns from markdown files."""
         patterns = load_anti_patterns(REPO_ROOT)
         assert len(patterns) > 0
-        # Check that new patterns exist
+        # Check that known patterns exist
         keys = list(patterns.keys())
-        assert "oversized-pr" in keys
-        assert "missing-test-coverage" in keys
-        assert "doc-code-mismatch" in keys
-        assert "no-issue-reference" in keys
+        assert "ai-generated-content" in keys
+        assert "breaking-change-no-compat" in keys
+        assert "contribai-missing-tests" in keys
+        assert "duplicate-pr-same-author" in keys
 
     def test_json_patterns_marked(self):
         """JSON patterns should be marked with _is_json_pattern."""
