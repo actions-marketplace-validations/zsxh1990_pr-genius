@@ -40,6 +40,9 @@ jobs:
           # mcp requires Python >=3.10; validate.yml uses 3.12 so always install
           pip install -e "prgenius[dev,mcp]"
 
+      - name: Check version consistency
+        run: python3 scripts/sync_version.py  # dry-run; fails if drift detected
+
       - name: Run tests (fail fast)
         run: pytest prgenius/tests/ -v -k "not test_score_merge and not test_evidence_directory_exists and not test_load_anti_patterns and not test_features_file_exists"
 

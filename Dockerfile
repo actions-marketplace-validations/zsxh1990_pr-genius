@@ -1,4 +1,4 @@
-# Dockerfile for pr-genius MCP server — v1.6.2 Glama private deploy
+# Dockerfile for pr-genius MCP server — v1.9.0 Glama private deploy
 # 克莱恩 2026-07-19 M4 指示
 
 FROM python:3.12-slim
