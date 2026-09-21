@@ -1,3 +1,9 @@
+---
+title: "PR Genius — Comprehensive Audit Report"
+type: Report
+date: 2026-09-05
+---
+
 # PR Genius — Comprehensive Audit Report
 
 **Date**: 2026-09-05 | **Version**: 1.8.0 | **Auditor**: 4 parallel sub-agents + synthesis
