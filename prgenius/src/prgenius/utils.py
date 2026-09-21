@@ -7,17 +7,47 @@ to avoid code duplication.
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
 from typing import Optional
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+_KB_MARKERS = ("anti-patterns", "success-patterns", "profiles")
+
+
+def _find_repo_root() -> Path:
+    """Locate the pr-genius repo root (knowledge bundle parent).
+
+    Resolution order:
+      1. ``PRGENIUS_REPO_ROOT`` env-var (explicit override).
+      2. Walk up from this file looking for a directory that contains
+         the knowledge-bundle markers (``anti-patterns/``, etc.).
+      3. Legacy ``.parents[3]`` fallback (dev-layout shortcut).
+    """
+    # 1. Env-var override
+    env = os.environ.get("PRGENIUS_REPO_ROOT")
+    if env:
+        p = Path(env).resolve()
+        if p.is_dir():
+            return p
+
+    # 2. Walk up from this file
+    here = Path(__file__).resolve()
+    for ancestor in here.parents:
+        if all((ancestor / m).is_dir() for m in _KB_MARKERS):
+            return ancestor
+
+    # 3. Legacy fallback (dev layout: prgenius/src/prgenius/utils.py)
+    return here.parents[3]
+
+
+REPO_ROOT = _find_repo_root()
 
 
 def get_repo_root() -> Path:
-    """Return the repo root directory (3 levels up from this file)."""
-    return Path(__file__).resolve().parents[3]
+    """Return the repo root directory containing the knowledge bundle."""
+    return REPO_ROOT
 
 
 def run_gh(args: list[str], timeout: int = 30) -> dict | list | None:
