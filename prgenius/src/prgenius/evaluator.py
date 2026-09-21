@@ -7,6 +7,8 @@ v1.0.0: 从"合并概率预测器"转为"提交前改进顾问"
 - 保留: 反模式检测 + 标签信号 + author 历史 → 直接输出 actionable 建议
 """
 from __future__ import annotations
+import os
+import time
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -210,18 +212,78 @@ def _parse_label(label: str) -> Tuple[str, str]:
 # 模式加载
 # ============================================================
 
-_anti_patterns_cache: Dict[str, Dict[str, dict]] = {}
-_success_patterns_cache: Dict[str, Dict[str, dict]] = {}
+# Cache entries: { cache_key: (patterns_dict, {file_path: mtime}, load_time) }
+_anti_patterns_cache: Dict[str, Tuple[Dict[str, dict], Dict[str, float], float]] = {}
+_success_patterns_cache: Dict[str, Tuple[Dict[str, dict], Dict[str, float], float]] = {}
+
+# TTL for mtime re-check (seconds) — avoids repeated os.stat on hot path
+_CACHE_MTIME_CHECK_INTERVAL = 60  # re-check disk at most once per 60s
+
+
+def _cache_is_valid(
+    cache: Dict[str, Tuple[Dict[str, dict], Dict[str, float], float]],
+    cache_key: str,
+) -> bool:
+    """Return True if cached entry is still valid (no file modified on disk)."""
+    if cache_key not in cache:
+        return False
+    _patterns, file_mtimes, _load_time = cache[cache_key]
+    now = time.monotonic()
+    # Only re-check mtimes every _CACHE_MTIME_CHECK_INTERVAL seconds
+    if now - _load_time < _CACHE_MTIME_CHECK_INTERVAL:
+        return True
+    # Re-scan directory for new/deleted files before checking individual mtimes
+    # Derive pattern dir from any cached file path, or from cache_key (repo_root)
+    if file_mtimes:
+        sample_path = next(iter(file_mtimes))
+        pattern_dir = Path(sample_path).parent
+    else:
+        # No files were cached — check if the directory now has files
+        pattern_dir = Path(cache_key) / "anti-patterns"
+        if not pattern_dir.exists():
+            # Also check success-patterns (both caches use this function)
+            pattern_dir = Path(cache_key) / "success-patterns"
+    current_mtimes = _collect_pattern_mtimes(pattern_dir)
+    if set(current_mtimes.keys()) != set(file_mtimes.keys()):
+        return False  # files added or deleted
+    # Check if any pattern file was modified since we loaded it
+    for fpath, old_mtime in file_mtimes.items():
+        try:
+            if os.path.getmtime(fpath) != old_mtime:
+                return False
+        except OSError:
+            # File deleted → invalidate
+            return False
+    # All files unchanged — update load_time to extend the quiet window
+    cache[cache_key] = (_patterns, file_mtimes, now)
+    return True
+
+
+def _collect_pattern_mtimes(pattern_dir: Path, extensions: Tuple[str, ...] = ("*.md", "*.json")) -> Dict[str, float]:
+    """Collect mtimes for all pattern files in a directory."""
+    mtimes: Dict[str, float] = {}
+    if not pattern_dir.exists():
+        return mtimes
+    for ext in extensions:
+        for f in pattern_dir.glob(ext):
+            if f.name == "README.md":
+                continue
+            try:
+                mtimes[str(f)] = os.path.getmtime(f)
+            except OSError:
+                pass
+    return mtimes
 
 def load_anti_patterns(repo_root) -> Dict[str, dict]:
     # v1.4.0 修复: 接受 str | Path (MCP smoke test 发现)
     repo_root = Path(repo_root) if not isinstance(repo_root, Path) else repo_root
     cache_key = str(repo_root)
-    if cache_key in _anti_patterns_cache:
-        return _anti_patterns_cache[cache_key]
+    if _cache_is_valid(_anti_patterns_cache, cache_key):
+        return _anti_patterns_cache[cache_key][0]
     patterns = {}
     anti_patterns_dir = repo_root / "anti-patterns"
     if not anti_patterns_dir.exists():
+        _anti_patterns_cache[cache_key] = (patterns, {}, time.monotonic())
         return patterns
 
     for file in anti_patterns_dir.glob("*.md"):
@@ -284,7 +346,8 @@ def load_anti_patterns(repo_root) -> Dict[str, dict]:
         except Exception:
             continue
 
-    _anti_patterns_cache[cache_key] = patterns
+    mtimes = _collect_pattern_mtimes(anti_patterns_dir)
+    _anti_patterns_cache[cache_key] = (patterns, mtimes, time.monotonic())
     return patterns
 
 
@@ -390,11 +453,12 @@ def load_success_patterns(repo_root) -> Dict[str, dict]:
     # v1.4.0 修复: 接受 str | Path
     repo_root = Path(repo_root) if not isinstance(repo_root, Path) else repo_root
     cache_key = str(repo_root)
-    if cache_key in _success_patterns_cache:
-        return _success_patterns_cache[cache_key]
+    if _cache_is_valid(_success_patterns_cache, cache_key):
+        return _success_patterns_cache[cache_key][0]
     patterns = {}
     success_patterns_dir = repo_root / "success-patterns"
     if not success_patterns_dir.exists():
+        _success_patterns_cache[cache_key] = (patterns, {}, time.monotonic())
         return patterns
     for file in success_patterns_dir.glob("*.md"):
         if file.name == "README.md":
@@ -451,7 +515,8 @@ def load_success_patterns(repo_root) -> Dict[str, dict]:
         except Exception:
             continue
 
-    _success_patterns_cache[cache_key] = patterns
+    mtimes = _collect_pattern_mtimes(success_patterns_dir)
+    _success_patterns_cache[cache_key] = (patterns, mtimes, time.monotonic())
     return patterns
 
 
