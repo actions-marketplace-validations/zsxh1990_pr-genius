@@ -23,6 +23,53 @@ from typing import Iterator
 _FM_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
 
 
+def extract_frontmatter_text(text: str) -> str | None:
+    """Extract raw frontmatter text between --- delimiters.
+
+    Returns the inner YAML text, or None if no frontmatter found.
+    Handles both ``---\\n...\\n---`` and ``---\\r?\\n...\\r?\\n---``.
+    """
+    m = _FM_RE.match(text)
+    return m.group(1) if m else None
+
+
+def _parse_simple_frontmatter(text: str) -> dict:
+    """Parse a simple key-value frontmatter block (evaluator-style).
+
+    Handles: scalar values, inline ``[a, b]`` lists, and ``- item`` lists.
+    Returns a dict of {key: value} where values are coerced via ``_coerce``.
+    """
+    fm: dict = {}
+    current_key = None
+    current_value: list[str] = []
+    in_list = False
+
+    for line in text.strip().split("\n"):
+        if re.match(r"^[a-zA-Z_]+:", line) and not line.startswith("  "):
+            if current_key is not None:
+                fm[current_key] = current_value if in_list else " ".join(current_value).strip()
+            key, value = line.split(":", 1)
+            current_key = key.strip()
+            value = value.strip()
+            if value == "":
+                current_value = []
+                in_list = True
+            elif value.startswith("["):
+                current_value = [v.strip().strip('"') for v in value[1:-1].split(",")]
+                in_list = False
+            else:
+                current_value = [value]
+                in_list = False
+        elif line.startswith("  - ") and in_list:
+            current_value.append(line[4:].strip().strip('"'))
+        elif line.startswith("  ") and not in_list:
+            current_value.append(line.strip())
+
+    if current_key is not None:
+        fm[current_key] = current_value if in_list else " ".join(current_value).strip()
+    return fm
+
+
 def load(path: str | Path) -> dict:
     """Load a markdown file: return {frontmatter, body, path}."""
     p = Path(path)
