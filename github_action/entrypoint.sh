@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # PR Genius GitHub Action Entry Point
 # Supports both direct command and action inputs
@@ -10,56 +10,49 @@ if [ $# -gt 0 ]; then
 fi
 
 # Otherwise, use action inputs
-if [ -z "$INPUT_TITLE" ]; then
+if [ -z "${INPUT_TITLE:-}" ]; then
     echo "Error: title input is required"
     exit 1
 fi
 
-if [ -z "$INPUT_REPO" ]; then
+if [ -z "${INPUT_REPO:-}" ]; then
     echo "Error: repo input is required"
     exit 1
 fi
 
-# Build command
-CMD="python3 -m prgenius ${INPUT_COMMAND:-coach}"
+# Build argument array (no eval — prevents shell injection)
+ARGS=("python3" "-m" "prgenius" "${INPUT_COMMAND:-coach}")
+ARGS+=("${INPUT_TITLE}")
+ARGS+=("--repo" "${INPUT_REPO}")
 
-# Add title
-CMD="$CMD \"${INPUT_TITLE}\""
-
-# Add required repo
-CMD="$CMD --repo ${INPUT_REPO}"
-
-# Add optional parameters
-if [ -n "$INPUT_BODY" ]; then
-    # Write body to temp file to avoid shell escaping issues
-    echo "$INPUT_BODY" > /tmp/pr_body.txt
-    CMD="$CMD --body \"$(cat /tmp/pr_body.txt)\""
+if [ -n "${INPUT_BODY:-}" ]; then
+    ARGS+=("--body" "${INPUT_BODY}")
 fi
 
-if [ -n "$INPUT_DESCRIPTION" ]; then
-    CMD="$CMD --description \"${INPUT_DESCRIPTION}\""
+if [ -n "${INPUT_DESCRIPTION:-}" ]; then
+    ARGS+=("--description" "${INPUT_DESCRIPTION}")
 fi
 
-if [ -n "$INPUT_FORMAT" ]; then
-    CMD="$CMD --format ${INPUT_FORMAT}"
+if [ -n "${INPUT_FORMAT:-}" ]; then
+    ARGS+=("--format" "${INPUT_FORMAT}")
 fi
 
-if [ -n "$INPUT_DIFF_STAT" ]; then
-    CMD="$CMD --diff-stat \"${INPUT_DIFF_STAT}\""
+if [ -n "${INPUT_DIFF_STAT:-}" ]; then
+    ARGS+=("--diff-stat" "${INPUT_DIFF_STAT}")
 fi
 
-if [ -n "$INPUT_AUTHOR" ]; then
-    CMD="$CMD --author ${INPUT_AUTHOR}"
+if [ -n "${INPUT_AUTHOR:-}" ]; then
+    ARGS+=("--author" "${INPUT_AUTHOR}")
 fi
 
-if [ -n "$INPUT_STAR_COUNT" ]; then
-    CMD="$CMD --star-count ${INPUT_STAR_COUNT}"
+if [ -n "${INPUT_STAR_COUNT:-}" ]; then
+    ARGS+=("--star-count" "${INPUT_STAR_COUNT}")
 fi
 
-if [ -n "$INPUT_REPO_MERGE_RATE" ]; then
-    CMD="$CMD --repo-merge-rate ${INPUT_REPO_MERGE_RATE}"
+if [ -n "${INPUT_REPO_MERGE_RATE:-}" ]; then
+    ARGS+=("--repo-merge-rate" "${INPUT_REPO_MERGE_RATE}")
 fi
 
-# Execute command
-echo "Running: $CMD"
-eval "$CMD"
+# Execute — no eval, arguments are passed as an array
+echo "Running: ${ARGS[*]}"
+exec "${ARGS[@]}"
