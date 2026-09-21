@@ -21,6 +21,7 @@ mcp-name: io.github.zsxh1990/pr-genius
 [![License](https://img.shields.io/github/license/zsxh1990/pr-genius?style=flat&color=blueviolet)](https://github.com/zsxh1990/pr-genius/blob/main/LICENSE)
 [![Glama score](https://glama.ai/mcp/servers/zsxh1990/pr-genius/badges/score.svg)](https://glama.ai/mcp/servers/zsxh1990/pr-genius)
 [![DSH Plugin](https://img.shields.io/badge/DSH-Plugin-blue?style=flat-square&logo=deepseek)](https://github.com/topics/dsh-plugin)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-PR%20Genius-blue?logo=github)](https://github.com/marketplace/actions/pr-genius)
 
 ---
 
@@ -112,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: zsxh1990/pr-genius/.github/actions/pr-genius-check@v1
+      - uses: zsxh1990/pr-genius@v1
         id: pr-genius
         with:
           title: ${{ github.event.pull_request.title }}
