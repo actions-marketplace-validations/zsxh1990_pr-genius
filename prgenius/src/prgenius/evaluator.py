@@ -7,9 +7,12 @@ v1.0.0: 从"合并概率预测器"转为"提交前改进顾问"
 - 保留: 反模式检测 + 标签信号 + author 历史 → 直接输出 actionable 建议
 """
 from __future__ import annotations
+import logging
 import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 # ============================================================
 # 常量
@@ -225,7 +228,8 @@ def load_anti_patterns(repo_root) -> Dict[str, dict]:
             if not fm_text:
                 continue
             patterns[file.stem] = _parse_simple_frontmatter(fm_text)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Skipping malformed anti-pattern file %s: %s", file, exc)
             continue
 
     # Load JSON patterns (from API/automation)
@@ -247,7 +251,8 @@ def load_anti_patterns(repo_root) -> Dict[str, dict]:
                     "_is_json_pattern": True,  # 标记来源, check_anti_patterns 跳过
                 }
                 patterns[file.stem] = fm
-        except Exception:
+        except Exception as exc:
+            logger.warning("Skipping malformed anti-pattern JSON file %s: %s", file, exc)
             continue
 
     _anti_patterns_cache[cache_key] = patterns
@@ -372,7 +377,8 @@ def load_success_patterns(repo_root) -> Dict[str, dict]:
             if not fm_text:
                 continue
             patterns[file.stem] = _parse_simple_frontmatter(fm_text)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Skipping malformed success-pattern file %s: %s", file, exc)
             continue
 
     # Load JSON patterns (from API/automation)
@@ -389,7 +395,8 @@ def load_success_patterns(repo_root) -> Dict[str, dict]:
                     "source_pr": data.get("source_pr", ""),
                 }
                 patterns[file.stem] = fm
-        except Exception:
+        except Exception as exc:
+            logger.warning("Skipping malformed success-pattern JSON file %s: %s", file, exc)
             continue
 
     _success_patterns_cache[cache_key] = patterns
