@@ -32,6 +32,9 @@ jobs:
           # Use [dev] extras so we also pick up build/twine for local validation
           pip install -e "prgenius[dev]" || pip install build twine
 
+      - name: Sync version to downstream files
+        run: python3 scripts/sync_version.py --apply
+
       - name: Run tests (gate)
         run: python3 -m pytest prgenius/tests/ -v -k "not test_score_merge and not test_evidence_directory_exists and not test_load_anti_patterns and not test_features_file_exists"
 
