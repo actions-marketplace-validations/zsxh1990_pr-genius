@@ -74,12 +74,15 @@ runs:
         PR_BODY: ${{ inputs.body }}
       run: |
         # Write body to temp file to avoid shell escaping issues
-        echo "$PR_BODY" > /tmp/pr_body.txt
+        PR_BODY_FILE=$(mktemp)
+        echo "$PR_BODY" > "$PR_BODY_FILE"
 
         RESULT=$(python3 -m prgenius analyze "$PR_TITLE" \
           --repo "$PR_REPO" \
-          --body "$(cat /tmp/pr_body.txt)" \
+          --body "$(cat "$PR_BODY_FILE")" \
           --format json 2>&1)
+
+        rm -f "$PR_BODY_FILE"
 
         # Validate JSON output
         if ! echo "$RESULT" | python3 -m json.tool >/dev/null 2>&1; then
