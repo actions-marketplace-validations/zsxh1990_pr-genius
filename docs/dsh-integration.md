@@ -11,7 +11,6 @@ conforms_to: OKF v0.1 (Sudhakaran88/okf-conformance) + agent_guidelines extensio
 
 # DSH Integration Guide
 
-[![DSH Plugin](https://img.shields.io/badge/DSH-Plugin-blue?style=flat-square&logo=deepseek)](https://github.com/topics/dsh-plugin)
 [![MCP](https://img.shields.io/badge/MCP-Server-green?style=flat-square)](https://github.com/modelcontextprotocol)
 
 > Use [pr-genius](https://github.com/zsxh1990/pr-genius) as an MCP skill inside [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/dsh) for AI-powered PR submission review, coach guidance, and anti-pattern detection.
