@@ -14,7 +14,7 @@ trigger_keywords:
 
 # Anti-Patterns 反模式库
 
-> **67 条反模式**，自动从 frontmatter 生成。
+> **74 条反模式**，自动从 frontmatter 生成。
 > 当 Agent 遇到 PR 失败信号时，拿报错 / 拒绝语关键词去匹配本库，实现秒级自愈。
 
 ## ContribAI (15)
@@ -36,6 +36,7 @@ trigger_keywords:
 | [contribai-out-of-scope](contribai-out-of-scope.md) | | | `out of scope`, `not in roadmap`, `off-topic` |
 | [contribai-performance-benchmark-missing](contribai-performance-benchmark-missing.md) | | | `needs benchmark`, `perf impact unknown`, `please provide before/after` |
 | [contribai-site-tos-violation](contribai-site-tos-violation.md) | | | `violates site ToS`, `this is illegal scraping`, `we don't bypass rate limits` |
+| [contribai-issue-claim-no-due-diligence](contribai-issue-claim-no-due-diligence.md) | Issue claim without due diligence — auto-closed | `issue-selection`, `due-diligence`, `auto-close` |
 
 ## General (17)
 
@@ -113,4 +114,25 @@ trigger_keywords:
 | Key | Symptom | Keywords |
 |-----|---------|----------|
 | [uv-cargo-fmt-required](uv-cargo-fmt-required.md) | CI 报错 Lint check failed / maintainer 评论 cargo fmt / rustfmt | `Please run cargo fmt`, `rustfmt`, `rustfmt-nightly` |
+
+## Ikalus Lessons (4)
+
+| Key | Source | Lesson |
+|-----|--------|--------|
+| [ikalus1998-misakanet-928](ikalus1998-misakanet-928.md) | Ikalus1988/MisakaNet#928 | Voice hooks PR — scope creep, closed |
+| [ikalus1998-misakanet-936](ikalus1998-misakanet-936.md) | Ikalus1988/MisakaNet#936 | Global disable switch — incomplete impl |
+| [ikalus1998-misakanet-938](ikalus1998-misakanet-938.md) | Ikalus1988/MisakaNet#938 | Anti-patterns reference doc — premature PR |
+| [ikalus1998-misakanet-965](ikalus1998-misakanet-965.md) | Ikalus1988/MisakaNet#965 | README numbers sync — stale data |
+
+## Case Studies (1)
+
+| Key | Repo | Status |
+|-----|------|--------|
+| [punkpeye-awesome-mcp-devtools-248-pending](punkpeye-awesome-mcp-devtools-248-pending.md) | punkpeye/awesome-mcp-devtools | pending |
+
+## punkpeye/fastmcp (1)
+
+| Key | Symptom | Keywords |
+|-----|---------|----------|
+| [punkpeye-fastmcp-282-too-large](punkpeye-fastmcp-282-too-large.md) | +271 lines, first PR — closed without review | `pr-size`, `first-contribution`, `maintainer-bandwidth` |
 

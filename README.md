@@ -67,7 +67,8 @@ PR Genius is **not** a PR dashboard. It's an **Outbound PR CRM** for professiona
 | #491 | MisakaNet | "Destructive README rewrite" — closed | `breaking_change_no_compat` anti-pattern |
 | #47434 | huggingface/transformers | "We'll handle internally" — closed | `maintainer_internal_handling` anti-pattern |
 | #10393 | awesome-mcp-servers | Missing Glama badge — auto-flagged | `awesome-mcp-servers-glama-badge-required` anti-pattern |
-| #282 | punkpeye/fastmcp | +271 lines, first PR — closed without review | `fastmcp-282-too-large` anti-pattern |
+| #282 | punkpeye/fastmcp | +271 lines, first PR — closed without review | `punkpeye-fastmcp-282-too-large` anti-pattern |
+| — | contribai | Issue claim without due diligence — auto-closed | `contribai-issue-claim-no-due-diligence` anti-pattern |
 | #2902 | soxoj/maigret | CI failure (tag `dev` not recognized) — fixed, merged | `maigret-tag-validation` pattern |
 | — | Ikalus1988/MisakaNet | Claimed issue without due diligence — auto-closed | `contribai-issue-claim-no-due-diligence` anti-pattern |
 | #928 | Ikalus1988/MisakaNet | Voice hooks PR — scope creep, closed | `ikalus1998-misakanet-928` lesson |
