@@ -1,3 +1,10 @@
+---
+type: Report
+repo: zsxh1990/pr-genius
+date: 2026-09-21
+status: active
+---
+
 # PR Genius Repository Audit Report
 
 **Repository**: `/Users/ericjia/repos/pr-genius`
