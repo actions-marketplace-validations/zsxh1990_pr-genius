@@ -55,7 +55,8 @@ def _parse_simple_frontmatter(text: str) -> dict:
                 current_value = []
                 in_list = True
             elif value.startswith("["):
-                current_value = [v.strip().strip('"') for v in value[1:-1].split(",")]
+                inner = value[1:-1].strip()
+                current_value = [v.strip().strip('"') for v in inner.split(",")] if inner else []
                 in_list = False
             else:
                 current_value = [value]

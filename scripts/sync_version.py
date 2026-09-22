@@ -74,16 +74,6 @@ def _check_dockerfile(path: Path, version: str) -> list[str]:
     return []
 
 
-def _apply_json(path: Path, version: str) -> tuple[bool, str]:
-    """Update a top-level version key in a JSON file."""
-    data = json.loads(path.read_text(encoding="utf-8"))
-    old = data.get("version", "")
-    if old == version:
-        return False, f"{path.name}: already {version}"
-    data[key] = version
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return True, f"{path.name}: {old} -> {version}"
-
 
 def _apply_server_json(path: Path, version: str) -> tuple[bool, str]:
     """Update server.json: top-level version AND packages[0].version."""

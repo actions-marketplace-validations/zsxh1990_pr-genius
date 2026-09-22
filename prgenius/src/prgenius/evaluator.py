@@ -140,7 +140,8 @@ def _check_requires_dco(repo: str, repo_root) -> Optional[bool]:
                 elif value in ("false", "no"):
                     return False
         return None
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to check dco requirement for %s: %s", repo, exc)
         return None
 
 
@@ -170,7 +171,8 @@ def _check_require_issue_first(repo: str, repo_root) -> Optional[bool]:
                 elif value in ("false", "no"):
                     return False
         return None
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to check issue-first requirement for %s: %s", repo, exc)
         return None
 
 

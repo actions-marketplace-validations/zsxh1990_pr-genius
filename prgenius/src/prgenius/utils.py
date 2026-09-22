@@ -7,11 +7,14 @@ to avoid code duplication.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import subprocess
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 _KB_MARKERS = ("anti-patterns", "success-patterns", "profiles")
 
@@ -59,8 +62,14 @@ def run_gh(args: list[str], timeout: int = 30) -> dict | list | None:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         if result.returncode == 0 and result.stdout.strip():
             return json.loads(result.stdout)
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
-        pass
+        if result.returncode != 0:
+            logger.warning("gh command failed (exit %d): %s", result.returncode, result.stderr.strip())
+    except FileNotFoundError:
+        logger.error("gh CLI not found — install from https://cli.github.com/")
+    except subprocess.TimeoutExpired:
+        logger.warning("gh command timed out after %ds", timeout)
+    except json.JSONDecodeError as exc:
+        logger.warning("gh returned invalid JSON: %s", exc)
     return None
 
 
@@ -78,39 +87,46 @@ def fetch_recent_prs(repo: str, state: str = "all", limit: int = 10) -> list[dic
             for pr in prs:
                 pr["_repo"] = repo
             return prs
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
-        pass
+        if result.returncode != 0:
+            logger.warning("gh pr list failed for %s (exit %d): %s", repo, result.returncode, result.stderr.strip())
+    except FileNotFoundError:
+        logger.error("gh CLI not found — install from https://cli.github.com/")
+    except subprocess.TimeoutExpired:
+        logger.warning("gh pr list timed out for %s", repo)
+    except json.JSONDecodeError as exc:
+        logger.warning("gh pr list returned invalid JSON for %s: %s", repo, exc)
     return []
+
+
+def _read_profile_text(repo: str, repo_root: Optional[Path] = None) -> Optional[str]:
+    """Read repo profile index.md text, or None if missing/inaccessible."""
+    root = repo_root or REPO_ROOT
+    index_file = root / "profiles" / repo.replace("/", "-") / "index.md"
+    if not index_file.exists():
+        return None
+    try:
+        return index_file.read_text()
+    except OSError as exc:
+        logger.warning("Failed to read profile for %s: %s", repo, exc)
+        return None
 
 
 def get_merge_rate(repo: str, repo_root: Optional[Path] = None) -> float:
     """Read external_merge_rate from repo profile."""
-    root = repo_root or REPO_ROOT
-    profile_dir = root / "profiles" / repo.replace("/", "-")
-    index_file = profile_dir / "index.md"
-    if not index_file.exists():
+    text = _read_profile_text(repo, repo_root)
+    if text is None:
         return 0.0
-    try:
-        text = index_file.read_text()
-        m = re.search(r'external_merge_rate:\s*([\d.]+)', text)
-        return float(m.group(1)) if m else 0.0
-    except (ValueError, AttributeError):
-        return 0.0
+    m = re.search(r'external_merge_rate:\s*([\d.]+)', text)
+    return float(m.group(1)) if m else 0.0
 
 
 def get_star_count(repo: str, repo_root: Optional[Path] = None) -> int:
     """Read star count from repo profile."""
-    root = repo_root or REPO_ROOT
-    profile_dir = root / "profiles" / repo.replace("/", "-")
-    index_file = profile_dir / "index.md"
-    if not index_file.exists():
+    text = _read_profile_text(repo, repo_root)
+    if text is None:
         return 0
-    try:
-        text = index_file.read_text()
-        m = re.search(r'^star:\s*(\d+)', text, re.MULTILINE)
-        return int(m.group(1)) if m else 0
-    except (ValueError, AttributeError):
-        return 0
+    m = re.search(r'^star:\s*(\d+)', text, re.MULTILINE)
+    return int(m.group(1)) if m else 0
 
 
 def classify_pr(pr: dict) -> str:
