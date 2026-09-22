@@ -2,7 +2,7 @@
 type: Knowledge Bundle
 title: PR Genius — Pre-submission PR Advisor
 description: Evidence-backed PR contribution advisor for large open-source projects
-version: 1.9.0
+version: 1.9.1
 created: 2026-07-01
 updated: 2026-09-05
 author: zsxh1990
@@ -142,7 +142,7 @@ comment (mirrors pr-agent's `/review`):
 ### Version Auto-Update
 
 - **`@v1`** — Always points to the latest `v1.x.x` release (recommended)
-- **`@v1.9.0`** — Pinned to specific version (for reproducibility)
+- **`@v1.9.1`** — Pinned to specific version (for reproducibility)
 - **`@main`** — Latest development version (not recommended for production)
 
 The `v1` tag is automatically updated when a new version is published to PyPI.
@@ -176,7 +176,7 @@ jobs:
 
 **Docker Image Tags:**
 - `ghcr.io/zsxh1990/pr-genius:latest` — Latest release
-- `ghcr.io/zsxh1990/pr-genius:1.9.0` — Specific version
+- `ghcr.io/zsxh1990/pr-genius:1.9.1` — Specific version
 - `ghcr.io/zsxh1990/pr-genius:1.9` — Minor version
 - `ghcr.io/zsxh1990/pr-genius:1` — Major version (auto-updated)
 
@@ -209,7 +209,7 @@ updates:
 }
 ```
 
-Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.0`
+Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.1`
 
 ### 12 MCP Tools
 

@@ -14,6 +14,13 @@ GitHub tag/release compare links per Keep a Changelog guidance.
 - **Git Tag**：仓库标签
 - **Milestone**：功能里程碑（可能跨多个 tag）
 
+## [1.9.1] — Dockerfile Fix for Glama Build
+
+### Fixed
+- **Dockerfile**: `COPY pyproject.toml` failed because file is in `prgenius/`, not root
+- **Dockerfile**: Invalid shell syntax (`COPY ... 2>/dev/null || true`) replaced with `COPY . .` + `.dockerignore`
+- **Orphan files**: Added 7 missing anti-pattern references to resolve CI orphan warnings
+
 ## [1.9.0] — GitHub Marketplace Launch
 
 ### Added
