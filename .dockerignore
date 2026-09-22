@@ -39,6 +39,7 @@ node_modules/
 # Large directories NOT copied to image
 evidence/
 review-cases/
+review-cases.bak/
 predictions/
 features/
 misakanet-50/
@@ -46,3 +47,29 @@ archive/
 data/
 reports/
 validate_checks/
+profiles/
+scripts/
+skill/
+github_action/
+Dockerfile.github_action
+package.json
+glama.json
+cordis.patch.yml
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.eggs/
+AUDIT_REPORT_*.md
+QUALITY_PLAN.md
+CLAUDE.md
+CONTRIBUTING.md
+DISCUSSIONS.md
+KNOWN_ISSUES.md
+SECURITY.md
+ROUNDS_SCHEMA.md
+AGENT_GUIDELINES_SCHEMA.md
+BLACKLIST.md
+README.zh-CN.md
+README.zh.md
