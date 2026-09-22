@@ -69,6 +69,12 @@ PR Genius is **not** a PR dashboard. It's an **Outbound PR CRM** for professiona
 | #10393 | awesome-mcp-servers | Missing Glama badge — auto-flagged | `awesome-mcp-servers-glama-badge-required` anti-pattern |
 | #282 | punkpeye/fastmcp | +271 lines, first PR — closed without review | `fastmcp-282-too-large` anti-pattern |
 | #2902 | soxoj/maigret | CI failure (tag `dev` not recognized) — fixed, merged | `maigret-tag-validation` pattern |
+| — | Ikalus1988/MisakaNet | Claimed issue without due diligence — auto-closed | `contribai-issue-claim-no-due-diligence` anti-pattern |
+| #928 | Ikalus1988/MisakaNet | Voice hooks PR — scope creep, closed | `ikalus1998-misakanet-928` lesson |
+| #936 | Ikalus1988/MisakaNet | Global disable switch — incomplete impl | `ikalus1998-misakanet-936` lesson |
+| #938 | Ikalus1988/MisakaNet | Anti-patterns reference doc — premature PR | `ikalus1998-misakanet-938` lesson |
+| #965 | Ikalus1988/MisakaNet | README numbers sync — stale data | `ikalus1998-misakanet-965` lesson |
+| #248 | punkpeye/awesome-mcp-devtools | Listing PR — still pending, no maintainer response | `punkpeye-awesome-mcp-devtools-248-pending` case study |
 
 ## 🚀 Quick Start
 

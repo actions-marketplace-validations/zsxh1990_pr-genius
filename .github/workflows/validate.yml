@@ -89,7 +89,11 @@ jobs:
                           referenced.add(target)
               except Exception:
                   pass
-          orphans = md_files - referenced - {'README.md', 'CHANGELOG.md', 'LICENSE', 'CODE_OF_CONDUCT.md'}
+          orphans = md_files - referenced - {
+              'README.md', 'CHANGELOG.md', 'LICENSE', 'CODE_OF_CONDUCT.md',
+              'CLAUDE.md', 'QUALITY_PLAN.md',
+              'AUDIT_REPORT_20260905.md', 'AUDIT_REPORT_20260921.md',
+          }
           if orphans:
               print('::warning::Orphan .md files:', sorted(orphans))
           else:
