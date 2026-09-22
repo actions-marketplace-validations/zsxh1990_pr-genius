@@ -364,11 +364,16 @@ fix_action: fix it
             assert "mtime-test" in result1
             assert "oldkword" in result1["mtime-test"].get("trigger_keywords", [])
 
-            # Force cache to expire by setting load_time to 0
+            # Force cache to expire — use monotonic-relative offset to avoid
+            # edge case where time.monotonic() < 60 on fresh CI runners.
             entry = _anti_patterns_cache[cache_key]
             assert isinstance(entry, tuple) and len(entry) == 3
             patterns, mtimes, _ = entry
-            _anti_patterns_cache[cache_key] = (patterns, mtimes, 0.0)
+            from prgenius.evaluator import _CACHE_MTIME_CHECK_INTERVAL
+            _anti_patterns_cache[cache_key] = (patterns, mtimes, time.monotonic() - _CACHE_MTIME_CHECK_INTERVAL - 1)
+
+            # Ensure mtime changes are detected (filesystem resolution)
+            time.sleep(0.1)
 
             # Modify the pattern file
             pattern_file = repo_root / "anti-patterns" / "mtime-test.md"
@@ -376,7 +381,6 @@ fix_action: fix it
                 self.ANTI_PATTERN_TEMPLATE.format(key="mtime-test", keyword="newkword", symptom="new symptom"),
                 encoding="utf-8",
             )
-            os.utime(pattern_file, (time.time() + 10, time.time() + 10))
 
             # Next load should pick up the change
             result2 = load_anti_patterns(repo_root)
@@ -394,11 +398,12 @@ fix_action: fix it
             assert "existing" in result1
             assert "added-later" not in result1
 
-            # Force cache to expire
+            # Force cache to expire — monotonic-relative offset
             entry = _anti_patterns_cache[cache_key]
             assert isinstance(entry, tuple) and len(entry) == 3
             patterns, mtimes, _ = entry
-            _anti_patterns_cache[cache_key] = (patterns, mtimes, 0.0)
+            from prgenius.evaluator import _CACHE_MTIME_CHECK_INTERVAL
+            _anti_patterns_cache[cache_key] = (patterns, mtimes, time.monotonic() - _CACHE_MTIME_CHECK_INTERVAL - 1)
 
             # Add a new pattern file
             new_file = repo_root / "anti-patterns" / "added-later.md"
