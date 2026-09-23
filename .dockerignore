@@ -50,8 +50,6 @@ validate_checks/
 profiles/
 scripts/
 skill/
-github_action/
-Dockerfile.github_action
 package.json
 glama.json
 cordis.patch.yml
