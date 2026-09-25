@@ -282,7 +282,8 @@ def check_anti_pattern_referenced(files: list[Path]) -> None:
             ap_keys.add(k)
 
     # 2. 收集所有 case study 中引用的 anti-pattern keys (from links: 字段或 body 文本)
-    case_files = [f for f in files if f.name.startswith("pr-")]
+    # Include pr-* case studies + README.md (which references patterns in examples)
+    case_files = [f for f in files if f.name.startswith("pr-") or f.name == "README.md"]
     referenced_keys: set[str] = set()
     case_count = len(case_files)
     for cf in case_files:
