@@ -76,6 +76,9 @@ ANTI_PATTERN_SEVERITY = {
     "low-value-contribution": "medium",
     "upstream-already-implementing": "medium",
     "fork-main-sync-upstream": "low",
+    # issue #45 结构性反模式（与 anti-patterns/*.md frontmatter severity 一致）
+    "fabricated-evidence-in-claim": "critical",
+    "state-derived-from-nonexistent-source": "high",
 }
 
 
@@ -366,8 +369,21 @@ _ANTI_PATTERN_STOPWORDS = frozenset({
 })
 
 
+def _hit_severity(key: str, pattern: dict) -> str:
+    """命中严重程度: 常量表优先, 其次 frontmatter severity, 默认 medium。"""
+    return (
+        ANTI_PATTERN_SEVERITY.get(key)
+        or pattern.get("severity")
+        or "medium"
+    )
+
+
 def check_anti_patterns(title: str, description: str, repo: str, repo_root, body: str = "") -> List[dict]:
-    """检查 PR 是否命中反模式"""
+    """检查 PR 是否命中反模式
+
+    匹配面: trigger_keywords 对 PR 标题 + 描述 + 正文做子串匹配
+    （issue #45: 标题 + 正文都在匹配面内）。
+    """
     # v1.4.0 修复: 接受 str | Path
     repo_root = Path(repo_root) if not isinstance(repo_root, Path) else repo_root
     anti_patterns = load_anti_patterns(repo_root)
@@ -385,6 +401,13 @@ def check_anti_patterns(title: str, description: str, repo: str, repo_root, body
         pattern_repo = pattern.get("repo", "").strip("/").lower()
         if pattern_repo and pattern_repo != repo_lower:
             continue
+        hit_common = {
+            "severity": _hit_severity(key, pattern),
+            # 结构性反模式: 关键词只做弱命中, 结构证据才能升级 (structural.py)
+            "match_mode": pattern.get("match_mode") or "keyword",
+            "match_type": "keyword",
+            "structural_confirmed": False,
+        }
         keywords = pattern.get("trigger_keywords", [])
         matched = False
         if isinstance(keywords, list):
@@ -396,12 +419,14 @@ def check_anti_patterns(title: str, description: str, repo: str, repo_root, body
                 if kw in text:
                     matches.append({
                         "key": key, "keyword": keyword,
+                        "matched_keyword": keyword,
                         "symptom": pattern.get("symptom", ""),
                         "fix_action": pattern.get("fix_action", ""),
                         "source_pr": pattern.get("source_pr", ""),
                         "source_url": pattern.get("source_url", ""),
                         "updated": pattern.get("updated", ""),
                         "confidence": pattern.get("confidence", ""),
+                        **hit_common,
                     })
                     seen_keys.add(key)
                     matched = True
@@ -411,11 +436,13 @@ def check_anti_patterns(title: str, description: str, repo: str, repo_root, body
             if symptom and symptom.lower() in text:
                 matches.append({
                     "key": key, "symptom": symptom,
+                    "matched_keyword": symptom,
                     "fix_action": pattern.get("fix_action", ""),
                     "source_pr": pattern.get("source_pr", ""),
                     "source_url": pattern.get("source_url", ""),
                     "updated": pattern.get("updated", ""),
                     "confidence": pattern.get("confidence", ""),
+                    **hit_common,
                 })
                 seen_keys.add(key)
     return matches
@@ -555,17 +582,28 @@ def _build_signals_and_checklist(
     # ---- 2. 反模式处理 ----
     for match in anti_matches:
         key = match["key"]
-        severity = ANTI_PATTERN_SEVERITY.get(key, "medium")
+        severity = match.get("severity") or ANTI_PATTERN_SEVERITY.get(key, "medium")
+        # issue #45: 结构性反模式的关键词弱命中降级为 high（列清单不阻塞），
+        # 只有结构证据 (structural_confirmed) 才按声明的 severity 走。
+        # 误报纪律：SUCCESS: / "repro steps" 这类词不能把正常 PR 直接判死。
+        if (
+            match.get("match_type") == "keyword"
+            and match.get("match_mode") == "structural"
+            and not match.get("structural_confirmed")
+        ):
+            severity = "high"
         symptom = match.get("symptom", "")
         fix_action = match.get("fix_action", "")
         source_pr = match.get("source_pr", "")
+        needs_review = bool(match.get("needs_human_review"))
 
         # 建设性信号描述: 症状 + 改进方向 + 案例来源
         desc_parts = []
-        if symptom:
+        if needs_review:
+            desc_parts.append("⚠️ 需人工复核")
+        desc_parts.append(match.get("description") or symptom or f"反模式风险: {key}")
+        if match.get("description") and symptom and symptom not in match["description"]:
             desc_parts.append(symptom)
-        else:
-            desc_parts.append(f"反模式风险: {key}")
         if fix_action:
             desc_parts.append(f"改进: {fix_action}")
         if source_pr:
@@ -577,13 +615,19 @@ def _build_signals_and_checklist(
             "severity": severity,
             "fix_action": fix_action,
             "source_pr": source_pr,
+            # issue #45: 退出码约定按来源+严重程度分流
+            "source": "anti_pattern",
+            "match_type": match.get("match_type", "keyword"),
+            "needs_human_review": needs_review,
         })
         if fix_action:
             checklist.append({
                 "action": f"fix_{key}",
-                "priority": "P0" if severity in ("critical", "high") else "P1",
+                # critical 阻塞 (P0)；high 只列清单 (P1)；其余不变
+                "priority": "P0" if severity == "critical" else "P1",
                 "done": False,
                 "hint": fix_action,
+                "needs_human_review": needs_review,
             })
 
     # ---- 3. 标签信号 ----
@@ -764,9 +808,19 @@ def _classify_tier_and_pr_size(
         (tier, pr_size, pr_size_label, impact_score, risk_level, risk_description)
     """
     # ---- 8. 计算 tier ----
-    neg_critical = sum(1 for s in signals_neg if s.get("severity") in ("critical", "high"))
-    neg_medium = sum(1 for s in signals_neg if s.get("severity") == "medium")
-    neg_low = sum(1 for s in signals_neg if s.get("severity") == "low")
+    # issue #45 退出码约定:
+    #   反模式 severity=critical → 阻塞 (high_risk → coach exit 1)
+    #   反模式 severity=high     → 只列清单不阻塞 → 不参与 tier 升档
+    #   非反模式信号 (merge_conflict 等) 维持原严重程度语义
+    def _tier_severity(s: dict) -> Optional[str]:
+        if s.get("source") == "anti_pattern" and s.get("severity") == "high":
+            return None
+        return s.get("severity", "medium")
+
+    tier_sevs = [sv for sv in (_tier_severity(s) for s in signals_neg) if sv is not None]
+    neg_critical = sum(1 for sv in tier_sevs if sv in ("critical", "high"))
+    neg_medium = sum(1 for sv in tier_sevs if sv == "medium")
+    neg_low = sum(1 for sv in tier_sevs if sv == "low")
     pos_count = len(signals_pos)
 
     if neg_critical >= 1:
@@ -1069,6 +1123,11 @@ def analyze_pr(
     is_bot = is_bot_author(author)
     require_issue_first = _check_require_issue_first(repo, repo_root)
     anti_matches = check_anti_patterns(title, description, repo, repo_root, body=body)
+    # issue #45: 结构性检查 (静态, 不执行 PR 代码) — 命中会升级对应反模式的
+    # severity / 标记需人工复核，覆盖表层关键词抓不到的缺陷形状
+    from .structural import check_structural_patterns, merge_structural_matches
+    structural_hits = check_structural_patterns(title, f"{description}\n{body}")
+    anti_matches = merge_structural_matches(anti_matches, structural_hits)
 
     # ---- Phase 1: 构建信号和检查清单 (Sections 0-8) ----
     signals_pos, signals_neg, signals_neu, checklist, repo_context = _build_signals_and_checklist(
