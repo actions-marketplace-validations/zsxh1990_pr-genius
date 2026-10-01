@@ -103,6 +103,17 @@ def check_frontmatter(files: list[Path]) -> None:
             "Test Report",         # docs/coach-smoke-test-*.md
             "Compliance Audit",    # docs/COMPLIANCE_AUDIT.md (added 2026-07-19)
             "Maintainer Policy", # docs/policies/<repo>.md (added 2026-07-18 by v1.2.0)
+            # 2026-10-01 validate 债务清理: 以下 type 是仓库里真实在用的有意分类,
+            # 之前只因枚举过窄而报 unknown type — 扩枚举, 不改文件 frontmatter。
+            "Document",            # QUALITY_PLAN.md, docs/workflows/post-release-maintenance.md
+            "Report",              # AUDIT_REPORT_*.md
+            "Documentation",       # docs/*.md 叙述性文档, prgenius/CHANGELOG.md
+            "Analysis",            # docs/pr-genius-efficiency-analysis.md
+            "Reference",           # docs/tool_call_prediction_table.md
+            "agent-guide",         # CLAUDE.md
+            "Maintainer Document", # docs/maintainer/pr-genius-observation.md
+            "Case Study",          # anti-patterns/*-pending.md (待定性 PR 案例记录)
+            "Target Pattern",      # success-patterns/*-target.md (贡献目标画像)
         }:
             warnings.append(
                 f"{f.relative_to(ROOT)}: unknown type `{fm['type']}`"
@@ -226,31 +237,48 @@ def check_internal_links(files: list[Path]) -> None:
                 )
 
 
-def check_root_index_consistency(root_index: Path, repo_dirs: list[Path]) -> None:
-    """Check 3: root index.md table row count == subdir count."""
+PROFILE_LINK_RE = re.compile(r"\]\(\./profiles/([^)/]+)/index\.md\)")
+
+
+def check_root_index_consistency(root_index: Path, profiles_dir: Path) -> None:
+    """Check 3: root index.md 索引到每个 profiles/ 子仓 (OKF S2/S4).
+
+    本 bundle 的"子仓"是 profiles/ 下的 Repo Profile。比较根 index.md 里
+    ./profiles/<slug>/index.md 链接覆盖的 slug 集合与 profiles/ 子目录集合:
+    未被索引的 profile 或指向不存在 profile 的悬空链接都算漂移 (warning)。
+
+    2026-10-01 修正: 旧实现拿"根目录顶层目录数 (19)"当子仓数去对"全表行数
+    (~61, 含工具/type 词汇表)", 两个口径都错 — 表格行数漂移警告从那时起就是
+    测量失真。现在改为 1:1 覆盖检查。
+    """
     print(f"[Check 3] Root index.md consistency")
     if not root_index.exists():
         errors.append("index.md not found")
         return
     text = root_index.read_text(encoding="utf-8")
-    # 表格行: | ... | ... |
-    table_rows = [
-        line for line in text.splitlines()
-        if line.startswith("| ") and not line.startswith("|---") and not line.startswith("| 维度") and "仓" not in line.split("|")[1]
-    ]
-    # 实际上更宽松：算所有非表头行
-    body_lines = [
-        line for line in text.splitlines()
-        if line.startswith("| ") and not re.match(r"^\|[\s\-:|]+\|$", line)
-        and not line.startswith("| 维度") and not line.startswith("| ---")
-        and not line.startswith("| 仓 ")
-    ]
-    # root index 里的表格行通常每个子仓一行
-    print(f"   root index.md table rows: ~{len(body_lines)}, subdirs: {len(repo_dirs)}")
-    # 不强 equal（README 也可能有表格），只在差很多时 warning
-    if abs(len(body_lines) - len(repo_dirs)) > 10:
+    linked = set(PROFILE_LINK_RE.findall(text))
+    profile_dirs: set[str] = set()
+    if profiles_dir.is_dir():
+        profile_dirs = {
+            p.name
+            for p in profiles_dir.iterdir()
+            if p.is_dir() and (p / "index.md").exists()
+        }
+    unlisted = sorted(profile_dirs - linked)
+    dangling = sorted(linked - profile_dirs)
+    print(
+        f"   root index.md profile links: {len(linked)}, "
+        f"profiles/ subdirs: {len(profile_dirs)}"
+    )
+    if unlisted or dangling:
+        detail = ""
+        if unlisted:
+            detail += f"; unlisted: {', '.join(unlisted)}"
+        if dangling:
+            detail += f"; dangling: {', '.join(dangling)}"
         warnings.append(
-            f"root index.md table rows (~{len(body_lines)}) vs subdirs ({len(repo_dirs)}) differ significantly"
+            f"root index.md profile links ({len(linked)}) vs profiles/ subdirs "
+            f"({len(profile_dirs)}) differ significantly{detail}"
         )
 
 
@@ -357,7 +385,7 @@ def main() -> int:
     # Find subdirectories (Repo Profile roots)
     repo_dirs = [p for p in ROOT.iterdir() if p.is_dir() and not p.name.startswith(".")]
     root_index = ROOT / "index.md"
-    check_root_index_consistency(root_index, repo_dirs)
+    check_root_index_consistency(root_index, ROOT / "profiles")
     check_anti_pattern_referenced(md_files)
     check_case_study_outcome_required(md_files)
     if check_profile_guideline_evidence:
@@ -417,7 +445,11 @@ def main() -> int:
             w.startswith("orphan anti-pattern:") or
             "缺 evidence_url" in w or
             "unknown type" in w or
-            "differ significantly" in w
+            "differ significantly" in w or
+            # needs_reverify 显式标记的超期 profile/policy: 真实债务已声明在
+            # frontmatter 里 (analyzed_at 不动, 不伪造新鲜度), 警告照印但不挡门。
+            # 未标记的超期警告仍然 critical。
+            "marked needs-reverify" in w
         )]
         if critical_warnings:
             return 1

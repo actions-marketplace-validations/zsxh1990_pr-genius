@@ -9,6 +9,7 @@ language: Python
 zsxh_pr_count: 1
 status: in-flight-priority
 analyzed_at: 2026-07-01
+needs_reverify: true  # 2026-10-01 校验: 分析已 >90d 未重验, 显式标记; 不改 analyzed_at
 priority_reason: 克莱恩 2026-06-28 14:25 GMT+8 亲自发了 friendly check-in
 tags:
   - repo-profile

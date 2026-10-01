@@ -10,6 +10,7 @@ zsxh_pr_count: 1
 status: in-flight
 data_source: zsxh PR #801
 analyzed_at: 2026-07-01
+needs_reverify: true  # 2026-10-01 校验: 分析已 >90d 未重验, 显式标记; 不改 analyzed_at
 evidence_urls:
   - https://github.com/plastic-labs/honcho
   - https://api.github.com/repos/plastic-labs/honcho
