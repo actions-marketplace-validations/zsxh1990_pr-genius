@@ -9,6 +9,7 @@ language: Rust
 zsxh_pr_count: 2
 data_source: research/uv-pr-knowledge/
 analyzed_at: 2026-06-27
+needs_reverify: true  # 2026-10-01 校验: 分析已 >90d 未重验, 显式标记; 不改 analyzed_at
 tags:
   - repo-profile
   - python-tooling
