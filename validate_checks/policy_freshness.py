@@ -10,6 +10,14 @@ flagged as stale — maintainer behavior changes (CONTRIBUTING.md is edited,
 bots are added/removed, CLA requirements flip) and stale policies give bad
 advice. This is a *warning*, not an error, so it doesn't fail --strict until
 the maintainer has had time to re-verify.
+
+Acknowledged staleness (2026-10-01): a stale entry may carry
+`needs_reverify: true` in its frontmatter — an explicit marker that the
+analysis is old and has NOT been re-verified (the date field is left
+untouched; never bump it to silence this check). The warning is still
+emitted (and counted as stale), but validate.py --strict treats the
+"marked needs-reverify" variant as acknowledged debt rather than a
+critical failure. An unmarked stale entry keeps failing --strict.
 """
 from __future__ import annotations
 
@@ -58,6 +66,7 @@ def check_policy_freshness(
     print(f"[Check 7] Policy / profile freshness (warn if >{max_age_days}d old or undated)")
     today = today or date.today()
     stale = 0
+    acknowledged = 0
     undated = 0
     fresh = 0
     for f in files:
@@ -85,9 +94,18 @@ def check_policy_freshness(
         age = (today - d).days
         if age > max_age_days:
             stale += 1
-            warnings.append(
-                f"{f.relative_to(ROOT)}: {kind} last updated {d} ({age}d > {max_age_days}d threshold); re-verify"
-            )
+            if fm.get("needs_reverify"):
+                acknowledged += 1
+                warnings.append(
+                    f"{f.relative_to(ROOT)}: {kind} last updated {d} ({age}d > {max_age_days}d threshold); marked needs-reverify (stale analysis retained, not re-verified)"
+                )
+            else:
+                warnings.append(
+                    f"{f.relative_to(ROOT)}: {kind} last updated {d} ({age}d > {max_age_days}d threshold); re-verify"
+                )
         else:
             fresh += 1
-    print(f"   policies/profiles scanned: fresh={fresh} stale={stale} undated={undated} (today={today.isoformat()})")
+    print(
+        f"   policies/profiles scanned: fresh={fresh} stale={stale} "
+        f"(acknowledged={acknowledged}) undated={undated} (today={today.isoformat()})"
+    )

@@ -43,6 +43,17 @@ federated_at: 2026-07-02
 | 10 | [mongodb-js/mongodb-mcp-server](https://github.com/mongodb-js/mongodb-mcp-server) | 1.1k | 🟢 #1309 | [mongodb-js-mongodb-mcp-server/index.md](./profiles/mongodb-js-mongodb-mcp-server/index.md) |
 | 11 | [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) | 208k | ⚪ 仅画像 | [NousResearch-hermes-agent/index.md](./profiles/NousResearch-hermes-agent/index.md) |
 | 12 | [Ikalus1988/MisakaNet](https://github.com/Ikalus1988/MisakaNet) | — | 🟢 federation peer | [Ikalus1988-MisakaNet/index.md](./profiles/Ikalus1988-MisakaNet/index.md) |
+| 13 | [Ikalus1988/pensieve](https://github.com/Ikalus1988/pensieve) | 1 | active (4 PRs) | [Ikalus1988-pensieve/index.md](./profiles/Ikalus1988-pensieve/index.md) |
+| 14 | [JasperHG90/memex](https://github.com/JasperHG90/memex) | 17 | active (1 PR) | [JasperHG90-memex/index.md](./profiles/JasperHG90-memex/index.md) |
+| 15 | [RailtownAI/railtracks](https://github.com/RailtownAI/railtracks) | 144 | active (1 PR) | [RailtownAI-railtracks/index.md](./profiles/RailtownAI-railtracks/index.md) |
+| 16 | [e2b-dev/awesome-ai-agents](https://github.com/e2b-dev/awesome-ai-agents) | 29k | in-flight-1242 (1 PR) | [e2b-dev-awesome-ai-agents/index.md](./profiles/e2b-dev-awesome-ai-agents/index.md) |
+| 17 | [modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk) | 24k | active (2 PRs) | [modelcontextprotocol-python-sdk/index.md](./profiles/modelcontextprotocol-python-sdk/index.md) |
+| 18 | [odebo/mindbook](https://github.com/odebo/mindbook) | 0 | abandoned (1 PR) | [odebo-mindbook/index.md](./profiles/odebo-mindbook/index.md) |
+| 19 | [punkpeye/awesome-mcp-devtools](https://github.com/punkpeye/awesome-mcp-devtools) | 474 | in-flight-248 (1 PR) | [punkpeye-awesome-mcp-devtools/index.md](./profiles/punkpeye-awesome-mcp-devtools/index.md) |
+| 20 | [punkpeye/awesome-mcp-servers](https://github.com/punkpeye/awesome-mcp-servers) | 92k | active (2 PRs) | [punkpeye-awesome-mcp-servers/index.md](./profiles/punkpeye-awesome-mcp-servers/index.md) |
+| 21 | [datalayer/jupyter-mcp-server](https://github.com/datalayer/jupyter-mcp-server) | 1k | ✅ #266 | [datalayer-jupyter-mcp-server/index.md](./profiles/datalayer-jupyter-mcp-server/index.md) |
+| 22 | [samanhappy/mcphub](https://github.com/samanhappy/mcphub) | 3k | ✅ #987 | [samanhappy-mcphub/index.md](./profiles/samanhappy-mcphub/index.md) |
+| 23 | [yorgai/ORG2](https://github.com/yorgai/ORG2) | 3k | ✅ #350 | [yorgai-ORG2/index.md](./profiles/yorgai-ORG2/index.md) |
 
 ### 大仓画像（交叉验证用）
 
@@ -84,8 +95,18 @@ federated_at: 2026-07-02
 | fastapi/fastapi | 101k | [fastapi-fastapi/index.md](./profiles/fastapi-fastapi/index.md) |
 | chroma-core/chroma | 29k | [chroma-core-chroma/index.md](./profiles/chroma-core-chroma/index.md) |
 | qdrant/qdrant | 33k | [qdrant-qdrant/index.md](./profiles/qdrant-qdrant/index.md) |
+| ag2ai/ag2 | 10k | [ag2ai-ag2/index.md](./profiles/ag2ai-ag2/index.md) |
+| astral-sh/ruff | 11k | [astral-sh-ruff/index.md](./profiles/astral-sh-ruff/index.md) |
+| electron/electron | 122k | [electron-electron/index.md](./profiles/electron-electron/index.md) |
+| microsoft/TypeScript | 110k | [microsoft-TypeScript/index.md](./profiles/microsoft-TypeScript/index.md) |
+| prometheus/prometheus | 50k | [prometheus-prometheus/index.md](./profiles/prometheus-prometheus/index.md) |
+| psf/requests | 50k | [psf-requests/index.md](./profiles/psf-requests/index.md) |
+| punkpeye/mcp-proxy | 272 | [punkpeye-mcp-proxy/index.md](./profiles/punkpeye-mcp-proxy/index.md) |
+| vercel/next.js | 141k | [vercel-next.js/index.md](./profiles/vercel-next.js/index.md) |
 
 > 🟢 = open / ✅ = merged / ❌ = 关闭但有教训 / ⚠️ = 需关注
+> 带 emoji 的状态为人工核对的 PR 结果；其余状态行取自 profile frontmatter 的
+> `status` / `zsxh_pr_count` 字段（✅ #N 来自对应 PR Case Study 的 closed-merged 记录）。
 > **OpenClaw 单独走自己的知识库**（已在 [openclaw-pr-knowledge/](../openclaw-pr-knowledge/README.md)），不计入本 bundle。
 
 ---
@@ -125,13 +146,18 @@ federated_at: 2026-07-02
 
 ### 我们的 type 词汇表
 
-| type | 用途 | 示例 |
-|---|---|---|
-| `Knowledge Bundle` | 入口 / 目录索引 | 本文件 |
-| `Repo Profile` | 单仓 PR 模式分析 | `astral-sh-uv/index.md` |
-| `PR Case Study` | 单个 PR 深读 + 教训 | `astral-sh-uv/pr-19685.md` |
-| `Cross-Repo Pattern` | 跨仓通用模式 / SOP | 待创建 |
-| `Risk Registry` | 敌视/危险社区清单 | 待创建 |
+合法 `type` 枚举以 `validate.py` 的 `check_frontmatter` 为准（2026-10-01 起与本表同步）：
+
+| 分组 | 合法 type |
+|---|---|
+| 入口 / 索引 | `Knowledge Bundle` · `Index` · `Schema Reference` |
+| 画像 / 案例 | `Repo Profile` · `PR Case Study` · `Case Study` · `Success Pattern` · `Success Pattern Bundle` · `Target Pattern` |
+| 反模式 | `Anti-Pattern` · `Anti-Pattern Bundle` |
+| 参考 / 风险 | `Reference` · `Risk Reference` · `Blacklist Reference` · `Community Resource` |
+| 文档 / 报告 | `Document` · `Documentation` · `Analysis` · `Report` · `Research Report` · `Retrospective` · `Test Report` · `Compliance Audit` |
+| 流程 / 策略 | `Roadmap` · `Lesson` · `Demo` · `Skill` · `Maintainer Policy` · `Maintainer Document` · `agent-guide` |
+
+待创建（尚未入枚举，出现即报 unknown type）：`Cross-Repo Pattern`（跨仓通用模式 / SOP）、`Risk Registry`（敌视/危险社区清单）。
 
 ---
 
@@ -342,6 +368,13 @@ federated_at: 2026-07-02
 ---
 
 ## 📝 更新日志
+
+### 2026-10-01 validate 债务清理
+
+- ✅ 画像表重建：`profiles/` 67 个子仓全部 1:1 索引（此前只链 48 个，缺 19 行；新行数据取自各 profile frontmatter / PR Case Study，无编造）
+- ✅ type 词汇表与 `validate.py` 枚举对齐（补 `Document`/`Documentation`/`Report`/`Analysis`/`Reference`/`agent-guide`/`Maintainer Document`/`Case Study`/`Target Pattern` 9 个在用类型，不改文件 frontmatter）
+- ✅ 6 个 >90d 未重验 profile 显式标记 `needs_reverify: true`（`analyzed_at` 不动，不伪造新鲜度；警告继续打印）
+- ✅ Check 3 改为「根 index.md 的 profile 链接 ↔ profiles/ 子目录」1:1 覆盖检查（旧口径拿顶层目录数对全表行数，测量失真）
 
 ### 2026-07-02 v0.3.0（联邦声明）
 
