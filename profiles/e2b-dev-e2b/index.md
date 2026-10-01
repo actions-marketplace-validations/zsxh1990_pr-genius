@@ -4,12 +4,11 @@ title: e2b-dev/E2B PR 模式分析
 description: E2B cloud sandbox CLI PR 模式 + zsxh1990 PR 经验（含永久归档教训）
 repo: e2b-dev/E2B
 url: https://github.com/e2b-dev/E2B
-star: 12783
+star: 14067
 language: Python
 zsxh_pr_count: 2
 status: archived-pitfall
-analyzed_at: 2026-07-01
-needs_reverify: true  # 2026-10-01 校验: 分析已 >90d 未重验, 显式标记; 不改 analyzed_at
+analyzed_at: 2026-10-01
 tags:
   - repo-profile
   - cloud-sandbox
@@ -32,7 +31,7 @@ agent_guidelines:
   ci_first_run_needs_approval: false
   default_branch: main
   response_time_h_median: 9  # 9h 考虑后拒 (PR #1458 验证)
-  merge_rate_30d: null
+  merge_rate_30d: 0.939  # 2026-09-01→2026-10-01: 62 merged / 4 closed-unmerged (GH search)
   close_keywords:
     - "we're not adding this feature"
     - "not seeing major user pain"
@@ -43,16 +42,16 @@ misakanet_queries:
   - misakanet/lessons/contrib/polite-close-vs-instant-close.md  # e2b 礼貌 vs vite 秒拒对比
 misakanet_lessons: []
 federation_status: declared-2026-07-02
-verified_at: "2026-07-05T14:53:11.740158Z"
+verified_at: "2026-10-01T13:29:03Z"
 evidence_urls:
   - https://github.com/e2b-dev/E2B
   - https://api.github.com/repos/e2b-dev/E2B
   - https://api.github.com/repos/e2b-dev/E2B/releases/latest
   - https://api.github.com/repos/e2b-dev/E2B/commits
 confidence: high  # autogen from GH API; bump to medium if human-curated
-last_release: e2b@2.31.0
-last_commit_sha: a6b1cf4b
-stars: 12844
+last_release: e2b@2.52.0
+last_commit_sha: 4065e93b
+stars: 14067
 agent_guidelines_evidence:
   allow_unsolicited_pr: https://github.com/e2b-dev/E2B/blob/main/CONTRIBUTING.md
   require_issue_first: https://github.com/e2b-dev/E2B/blob/main/CONTRIBUTING.md
@@ -72,17 +71,20 @@ agent_guidelines_evidence:
 > E2B 是 cloud sandbox（AI 代码执行环境）CLI。  
 > **AI 友好度**：**高但严格**（CLA 必须签 + 不接受 _ERROR_HANDLER 类）。  
 > **zsxh1990 PR 经验**：2 个 closed（1413 merged + 1458 closed-not-merged）。  
-> **关键教训**：E2B 礼貌但坚定地拒绝"通用基础设施"类 PR。
+> **关键教训**：E2B 礼貌但坚定地拒绝"通用基础设施"类 PR。  
+> **2026-10-01 重验**：star 12.8k→14.1k；CLA/changeset 双 bot 仍强制；Devin 已成为仓内自动贡献主力。
 
 ---
 
-## 1. 友好度画像
+## 1. 友好度画像（2026-10-01 重验）
 
-- ✅ 大型 startup（12.7k star，AI 公司）
-- ✅ 外部 PR 接受率中（中等严格）
-- ⚠️ **CLA 必须签**（@cla-bot 强制）
-- ⚠️ **changeset 必填**（@changeset-bot 强制）
-- ⚠️ mishushakov（maintainer）"not seeing major user pain" 就 close
+- ✅ 大型 startup（14.1k star，AI 公司；30d 合并 62 个 = 93.9%，昨天仍在发版 e2b@2.52.0）
+- ✅ 外部 PR 可合（PR #1912 外部贡献者签 CLA 后 2026-10-01 被 mishushakov `/accept` 合入）
+- ⚠️ **CLA 必须签**（@cla-bot 强制）——2026-09-29 在 PR #1912 上仍然执法："we don't have @xxx on file. You can sign our CLA at https://e2b.dev/docs/cla"
+- ⚠️ **changeset 必填**（@changeset-bot 强制）——同期同一 PR 仍在贴 Changeset detected
+- ⚠️ CONTRIBUTING.md 已缩成一行（"open a PR, issue, or start a discussion on our Discord"），CLA/changeset 流程**只在 bot 评论里可见**，文档化程度反而下降
+- ⚠️ mishushakov（maintainer）仍在一线："looks good, sign the CLA and check the comment above"；"not seeing major user pain" 就 close 的风格未变
+- 🤖 **devin-ai-integration 已成仓内贡献主力**：最近 10 个 merged PR 有 7 个是 Devin 自己提并合的（deps bump、refactor、test）——人类外部 PR 空间在收窄
 
 ---
 

@@ -369,6 +369,13 @@ federated_at: 2026-07-02
 
 ## 📝 更新日志
 
+### 2026-10-01 G3 profile 重验销账（#43）
+
+- ✅ 6 个 `needs_reverify` 画像全部真重验（gh api 只读拉真实状态）并移除标记，`analyzed_at` 更新为 2026-10-01
+- ✅ 更新正文事实：star / 活跃度 / 30d 合并率 / 维护者态度 / 近期 PR / 贡献政策（uv AI_POLICY 搬家、honcho issue-gate、harbor Golden Rule、sourcebot design-review 护栏）
+- ✅ 4 个"在飞" PR 结局核实：#1383/#778 自行 close，#801 被 maintainer 带论据关闭，harbor #2121 仍 open（95d 零人类响应）
+- ✅ `needs_reverify` 标记数 = 0
+
 ### 2026-10-01 validate 债务清理
 
 - ✅ 画像表重建：`profiles/` 67 个子仓全部 1:1 索引（此前只链 48 个，缺 19 行；新行数据取自各 profile frontmatter / PR Case Study，无编造）
