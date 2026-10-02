@@ -63,7 +63,10 @@ runs:
 
     - name: Install pr-genius
       shell: bash
-      run: pip install prgenius-core
+      # 钉到主版本：补丁/次版本自动更新，大版本不会被静默拉进来。
+      # 完全不钉（`pip install prgenius-core`）意味着一次 breaking release
+      # 会直接进到所有用这个 Action 的 CI 里。
+      run: pip install "prgenius-core>=2.0,<3.0"
 
     - name: Run PR Genius
       id: analysis
