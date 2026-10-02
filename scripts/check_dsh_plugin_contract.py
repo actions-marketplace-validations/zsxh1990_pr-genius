@@ -38,6 +38,14 @@ BLOCKING: list[tuple[bool, str]] = []
 WARNINGS: list[str] = []
 
 
+def uses_node_test() -> bool:
+    """node:test counts: it is the zero-dependency runner and this repo uses it."""
+    for q in (ROOT / "test").glob("*.ts") if (ROOT / "test").is_dir() else []:
+        if "node:test" in q.read_text(encoding="utf-8", errors="replace"):
+            return True
+    return False
+
+
 def ok(cond: bool, msg: str) -> None:
     BLOCKING.append((bool(cond), msg))
 
@@ -79,14 +87,18 @@ if entry:
     )
 
     # Config must be BOTH a TS interface and a same-named Schemastery schema.
-    has_iface = re.search(r"export\s+interface\s+Config\b", entry) is not None
-    has_schema = re.search(r"export\s+const\s+Config\s*[:=]", entry) is not None
+    # Config 可以住在 entry，也可以住在被 entry 再导出的模块里（我们放 src/config.ts）。
+    # 扫整个 src/ 而不是只看 entry，否则会把「拆了文件」误判成「没声明」。
+    src_files = [q for q in (ROOT / "src").rglob("*.ts")]
+    src_text = "\n".join(q.read_text(encoding="utf-8", errors="replace") for q in src_files)
+    has_iface = re.search(r"export\s+interface\s+Config\b", src_text) is not None
+    has_schema = re.search(r"export\s+const\s+Config\s*[:=]", src_text) is not None
     ok(has_iface, "entry declares `export interface Config`")
     ok(has_schema, "entry declares same-named `Config` schema (Cordis convention)")
     if has_schema:
-        uses_schema = re.search(r"Schema\.(object|string|number|boolean|array)", entry) is not None
+        uses_schema = re.search(r"Schema\.(object|string|number|boolean|array|union)", src_text) is not None
         ok(uses_schema, "Config is built from Schemastery, not a plain object")
-        warns = "export const Config: Schema" in entry or "Schema<Config>" in entry
+        warns = "export const Config: Schema" in src_text or "Schema<Config>" in src_text
         ok(warns, "Config schema is typed as Schema<Config>")
 
 # ── 2 & 3. Config discipline ────────────────────────────────────────────
@@ -176,12 +188,13 @@ if tsconfig.is_file():
     )
 
 ok(
-    any((ROOT / d).is_dir() for d in ("tests", "src/tests")),
+    any((ROOT / d).is_dir() for d in ("tests", "test", "src/tests")),
     "TypeScript tests directory exists",
 )
 ok(
-    any((ROOT / n).is_file() for n in ("vitest.config.ts", "vitest.config.mts", "jest.config.js", "jest.config.ts")),
-    "TypeScript test runner configured (vitest/jest — the plugin is TS)",
+    any((ROOT / n).is_file() for n in ("vitest.config.ts", "vitest.config.mts", "jest.config.js", "jest.config.ts"))
+    or uses_node_test(),
+    "TypeScript test runner configured (vitest/jest/node:test)",
 )
 ok(
     any((ROOT / n).is_file() for n in ("tsdown.config.ts", "tsup.config.ts", "rollup.config.js", "vite.config.ts", "esbuild.config.js")),
