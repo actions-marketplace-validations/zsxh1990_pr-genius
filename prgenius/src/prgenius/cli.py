@@ -129,8 +129,11 @@ def cmd_analyze(args) -> int:
 def cmd_coach(args) -> int:
     """Agent PR Dojo: analyze + exit code 表示 pass/fail
 
-    exit 0 = 通过 (低风险/中风险)
-    exit 1 = 不通过 (高风险)，Agent 应先修复再提交
+    退出码约定 (issue #45):
+    exit 0 = 通过 (低风险/中风险)。severity=high 的反模式命中不阻塞，
+             但会列进 checklist（含"需人工复核"标记）
+    exit 1 = 不通过 (高风险 / 命中 severity=critical 的反模式)，
+             Agent 应先修复或人工复核再提交
     """
     repo_root = _get_repo_root(args)
     labels = args.labels if args.labels else []
@@ -200,7 +203,8 @@ def cmd_coach(args) -> int:
             if undone:
                 print("📋 待修复:")
                 for item in undone:
-                    print(f"  [{item['priority']}] {item['hint']}")
+                    review_mark = "（需人工复核）" if item.get("needs_human_review") else ""
+                    print(f"  [{item['priority']}] {item['hint']}{review_mark}")
                     if item.get("suggested_fix"):
                         print(f"       ```")
                         for fix_line in item["suggested_fix"].split("\n"):

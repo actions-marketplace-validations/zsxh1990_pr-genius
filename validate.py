@@ -405,6 +405,26 @@ def main() -> int:
     except ImportError as e:
         print(f"[Check 8] release_audit not available: {e}")
 
+    # Check 9 (issue #41): review-cases/*.json evidence gate.
+    # validate_checks 可选模块的 house pattern 是 ImportError 时跳过, 但这个
+    # check 本身就是证据门 —— 模块缺失时静默跳过 = 又假绿。所以只有在不带
+    # --enforce-evidence 时才允许"没装模块就跳过"; 带 flag 时模块缺失按 error 处理。
+    enforce_evidence_flag = "--enforce-evidence" in sys.argv
+    try:
+        from validate_checks.review_case_evidence import check_review_case_evidence
+    except ImportError as e:
+        check_review_case_evidence = None
+        print(f"[Check 9] review_case_evidence not available: {e}")
+    if check_review_case_evidence is not None:
+        check_review_case_evidence(
+            ROOT, warnings, errors, enforce_evidence=enforce_evidence_flag
+        )
+    elif enforce_evidence_flag:
+        errors.append(
+            "[evidence-gate] validate_checks.review_case_evidence unavailable — "
+            "--enforce-evidence cannot verify review-cases/*.json"
+        )
+
     # T4: emit snapshot stats (used by validate.py --snapshot and scripts/dashboard.py)
     if "--snapshot" in sys.argv:
         import json as _json
@@ -449,7 +469,11 @@ def main() -> int:
             # needs_reverify 显式标记的超期 profile/policy: 真实债务已声明在
             # frontmatter 里 (analyzed_at 不动, 不伪造新鲜度), 警告照印但不挡门。
             # 未标记的超期警告仍然 critical。
-            "marked needs-reverify" in w
+            "marked needs-reverify" in w or
+            # review-case evidence (check 9): 存量 302 条是已声明债务 (方案 G1
+            # "存量分期补"), 不带 --enforce-evidence 时只警告不挡 --strict;
+            # 带 --enforce-evidence 时 findings 进 errors, 走 `if errors: return 1`。
+            "[evidence-gate]" in w
         )]
         if critical_warnings:
             return 1

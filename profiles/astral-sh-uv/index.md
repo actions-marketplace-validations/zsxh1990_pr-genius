@@ -4,12 +4,11 @@ title: astral-sh/uv PR 模式分析
 description: uv 仓的 PR 模式 + 友好度 + 5 个提 PR 目标 + SOP
 repo: astral-sh/uv
 url: https://github.com/astral-sh/uv
-star: 86923
+star: 90340
 language: Rust
 zsxh_pr_count: 2
 data_source: research/uv-pr-knowledge/
-analyzed_at: 2026-06-27
-needs_reverify: true  # 2026-10-01 校验: 分析已 >90d 未重验, 显式标记; 不改 analyzed_at
+analyzed_at: 2026-10-01
 tags:
   - repo-profile
   - python-tooling
@@ -32,7 +31,7 @@ agent_guidelines:
   ci_first_run_needs_approval: false
   default_branch: main
   response_time_h_median: 12
-  merge_rate_30d: 0.729
+  merge_rate_30d: 0.923  # 2026-09-01→2026-10-01: 429 merged / 36 closed-unmerged (GH search)
   close_keywords:
     - "autonomous"
     - "breaking change"
@@ -42,20 +41,20 @@ misakanet_queries:
   - misakanet/lessons/contrib/pr-strategy.md#ai-assisted-disclosure-policy  # uv vs Claude Code 政策对比
 misakanet_lessons: []
 federation_status: declared-2026-07-02
-verified_at: "2026-07-05T14:53:11.740158Z"
+verified_at: "2026-10-01T13:29:03Z"
 evidence_urls:
   - https://github.com/astral-sh/uv
   - https://api.github.com/repos/astral-sh/uv
   - https://api.github.com/repos/astral-sh/uv/releases/latest
   - https://api.github.com/repos/astral-sh/uv/commits
 confidence: high  # autogen from GH API; bump to medium if human-curated
-last_release: 0.11.26
-last_commit_sha: 32194f49
-stars: 87098
+last_release: 0.12.21
+last_commit_sha: 9646de55
+stars: 90340
 agent_guidelines_evidence:
   allow_unsolicited_pr: https://github.com/astral-sh/uv/blob/main/CONTRIBUTING.md
   require_issue_first: https://github.com/astral-sh/uv/blob/main/CONTRIBUTING.md
-  ai_policy: https://github.com/astral-sh/uv/blob/main/CONTRIBUTING.md
+  ai_policy: https://github.com/astral-sh/.github/blob/main/AI_POLICY.md  # 2026-10-01 重验: AI_POLICY.md 已从 uv 仓根迁到 astral-sh/.github org 仓
   maintainer_vibe: https://github.com/astral-sh/uv/pulls?q=is%3Apr+is%3Aclosed
   external_merge_rate_30: https://github.com/astral-sh/uv/pulls?q=is%3Apr+is%3Aclosed
   close_keywords: https://github.com/astral-sh/uv/pulls?q=is%3Apr+is%3Aclosed
@@ -75,44 +74,47 @@ agent_guidelines_evidence:
 
 ## 1. 友好度画像
 
-### 1.1 AI 政策（最关键）
+### 1.1 AI 政策（最关键）— 2026-10-01 重验
+
+**政策文件已搬家**：AI_POLICY.md 从 `uv` 仓根迁到 org 级 [astral-sh/.github/AI_POLICY.md](https://github.com/astral-sh/.github/blob/main/AI_POLICY.md)（uv CONTRIBUTING "Use of AI" 节引用之："If your contribution does not follow the policy, it will be closed"）。政策实质未变，2026-10-01 重新核实原文：
 
 - ✅ 明确允许 AI 写代码：*"We support using AI (i.e., LLMs) as tools for coding"*
-- ⚠️ 强制 human in the loop：*"PR description and comments should be written by a human"*
-- ⚠️ 评论必须手写：*"Do not copy responses from the AI when replying to questions"*
-- ❌ **禁止 autonomous agent**：*"We will close any pull requests that we believe were created autonomously"*
-- 🤖 bot `bot:ai-policy-comment` 历史上只命中 **6 个 PR**（全来自 LouisLau-art 2026-02-06 一天批量）= bot 抓的是"明显 autonomous 行为模式"，**不是"用了 AI 写代码"**
+- ⚠️ 评论必须人类写：*"AI should not be used to generate comments when communicating with maintainers... We may hide any comments that we believe are AI generated"*
+- ⚠️ 不许复制 AI 回答：*"Do not copy responses from the AI when replying to questions from maintainers"*
+- ❌ **禁止 autonomous agent**：*"We do not allow autonomous agents to be used for contributing to our projects. We will close any pull requests that we believe were created autonomously"*
+- 🤖 **执法明显加码**：`bot:ai-policy-close` 标签累计 **25 个 PR**，其中 **17 个发生在最近 30 天**（占 30d 全部 closed-unmerged 36 个的 47%）。旧标签 `bot:ai-policy-comment` 最近 30 天 0 命中（已换代）。
 
 **结论**：zsxh1990 提 AI 辅助 PR 完全 OK，只要：
 1. PR body + 评论**人类手写**（克莱恩/太阳）
 2. **真实理解代码**（不是 AI 写完就交）
 3. PR body 显式标 "AI-assisted" 透明披露
 4. 不批量提多个相似 PR（撞 autonomous 模式）
+5. **2026 新增**：AI 引用内容必须放 quote block + 人类评注（政策新要求）
 
-### 1.2 合并率（30d）
+### 1.2 合并率（30d）— 2026-10-01 重算
 
-| 维度 | 数据 | 对比 OpenClaw 6 月 |
+| 维度 | 2026-10-01 | 2026-06 口径 |
 |---|---|---|
-| 30d merged | 234 | — |
-| 30d closed-not-merged | 87 | — |
-| **30d 合并率** | **72.9%** | 70.9% |
+| 30d merged | 429 | 234 |
+| 30d closed-not-merged | 36 | 87 |
+| **30d 合并率** | **92.3%** | 72.9% |
+| 其中 bot (astral-automations) merged | 98 | — |
 
-→ **uv 真的友好**（2.7:1 merged:closed 比例）。
+→ **uv 依旧友好**，且 30d 合并率比 6 月更高（但其中 98 个是官方 automations bot 自合；人类/外部合并 ≈331）。
 
-### 1.3 失败标签画像（30d 87 close）
+### 1.3 失败标签画像（30d 36 closed-unmerged）— 2026-10-01 重算
 
 | 标签 | 占比 | 含义 |
 |---|---|---|
-| `internal` | 11.5% | 维护者撤销自己 PR（**不代表外部分失败**） |
-| `bot:ai-policy-comment` | 6.9% | AI policy 触发（**全是 LouisLau-art**） |
-| `breaking` | 5.7% | breaking 改动 = close 重灾区 |
-| `bug` | 5.7% | **bug fix 失败率最低** = 优选方向 |
-| `enhancement` | 3.4% | 增强类也可 |
+| `bot:ai-policy-close` | **47.2%**（17/36） | **AI policy 执法 = 现在的 close 重灾区** |
+| `internal` | 13.9%（5/36） | 维护者撤销自己 PR（不代表外部分失败） |
+| `build:skip-docker` / `build:skip-release` | 各 8.3% | 发布构建规避标签 |
+| `enhancement` / `documentation` / `performance` / `question` | 各 1 个 | 零星 |
 
-**关键发现**：
-- **bug fix 优先**（close 率 5.7%）
-- **breaking 改动 = 红线**（合并 0/200）
-- **enhancement 类也可**（close 率 3.4%）
+**关键发现（对比 6 月）**：
+- **AI policy 触发从 6.9% 飙到 47.2%** —— autonomous 疑似行为是现在最大的关门理由，比 breaking 更危险
+- 2026-06 的"breaking 5.7% / bug 5.7% / enhancement 3.4%"分布本月未复现（36 个 close 里没有 breaking/bug 标签），旧结论降级为参考
+- `internal` 类依旧存在 = close ≠ 外部失败
 
 ---
 
@@ -238,14 +240,14 @@ and verified the behavior end-to-end.
 
 ---
 
-## 6. 关键 maintainer
+## 6. 关键 maintainer（2026-10-01 重验活跃度）
 
-| maintainer | 角色 | 响应速度 |
-|---|---|---|
-| @charliermarsh | Astral 创始，uv lead | 24h 内 |
-| @zanieb | 核心维护 | 24-48h |
-| @woodruffw | Astral 安全 + uv 维护 | 2-7 天（严格） |
-| @konstin | Astral 联合创始 | 1-2 周 |
+| maintainer | 角色 | 响应速度 | 2026-10-01 活跃度核实 |
+|---|---|---|---|
+| @charliermarsh | Astral 创始，uv lead | 24h 内 | ✅ 2026-09-30 仍亲自 merge（#22101/22103/22104） |
+| @zanieb | 核心维护 | 24-48h | 本次样本未见，未核实 |
+| @woodruffw | Astral 安全 + uv 维护 | 2-7 天（严格） | ✅ 2026-09-30 仍活跃（#22107/22109） |
+| @konstin | Astral 联合创始 | 1-2 周 | ✅ 2026-10-01 仍活跃（#22117） |
 
 → woodruffw 是安全话题 reviewer，**涉及安全的 PR 必须先 issue 讨论**。
 

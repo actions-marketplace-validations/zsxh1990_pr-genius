@@ -19,7 +19,7 @@ confidence: high
 | `anti-patterns/` | 61 md + 190 json | md 带 `evidence:` 列表；json 为结构化 PR 记录 |
 | `success-patterns/` | 436 md | 带 `source_url`，多数无逐条证据 |
 | `review-cases/` | **302 json** | **`verified_at` / `evidence_urls` 覆盖 0** |
-| `profiles/` | 67 | 6 个已标 `needs_reverify`（92–96d 超期） |
+| `profiles/` | 67 | 0 个 `needs_reverify`（2026-10-01 六个全部重验销账） |
 | 根 `index.md` | 67 行画像 1:1 | ✅ #40 修复后与 `profiles/` 一致 |
 
 **门禁状态**：`validate.py --strict` exit 0 · `--enforce-evidence` exit 0
@@ -74,15 +74,23 @@ confidence: high
 **做法**：每条 anti-pattern 落地时，同步在至少一个 review-case / case study 里引用它的 key。
 **判据**：`validate.py` 的 orphan 警告数 = 0。
 
-### G3 · profile 重验消账 ｜ 中
+### G3 · profile 重验消账 ｜ ✅ 已完成（2026-10-01，#43）
 
-**现状**：6 个 profile 标着 `needs_reverify`（astral-sh-uv 96d，其余 5 个 92d）。
+**结果**：6 个 profile 全部真重验并销账，`needs_reverify` 标记数 = 0。
+重验对象：astral-sh-uv / e2b-dev-e2b / future-agi-future-agi / harbor-framework-harbor /
+plastic-labs-honcho / sourcebot-dev-sourcebot。每个仓用 gh api 只读拉了真实状态
+（stars / pushed / merged·closed PR / open issues / releases / 我方 PR 结局），
+更新了画像正文（star、活跃度、合并习惯、维护者态度、近期 PR、贡献政策），
+`analyzed_at` 更新为真实重验日 2026-10-01。
 
-**注意**：`needs_reverify` 只是**声明债务，不是偿还**。#40 的取舍是把它从 strict 门降到可见警告——
-这意味着 `--strict` 绿不再等于"所有画像都新鲜"。要真正销账必须重跑上游仓、更新画像。
+**重验发现的重大漂移**（详见各 profile "2026-10-01 重验" 段）：
+- 4 个"在飞" PR 全部已终结：#1383/#778 自行 close（6-8 周零响应），#801 被 maintainer 带论据关闭，
+  仅 harbor #2121 仍 open（95d 零人类响应）
+- honcho 贡献规则大改：强制 issue + `maintainer-approved` gate，无 gate 72h 自动关
+- uv AI_POLICY.md 迁至 astral-sh/.github；`bot:ai-policy-close` 执法 30d 占 close 的 47%
+- harbor 新增 Golden Rule（须自证理解 + 披露 agent）；sourcebot UI/core 须先 design review
 
-**做法**：每次心跳重验 1–2 个，两轮内清空。**绝不改 `analyzed_at` 消警报。**
-**判据**：`needs_reverify` 标记数单调递减至 0。
+**注意**：`needs_reverify` 只是**声明债务，不是偿还**——本次是偿还动作本身：真跑了上游、真改了正文，不是改日期。
 
 ### G4 · 扩充"我方被拒/被纠错"的案例 ｜ 中
 

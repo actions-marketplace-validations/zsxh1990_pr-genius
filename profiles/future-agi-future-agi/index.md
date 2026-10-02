@@ -4,13 +4,12 @@ title: future-agi/future-agi PR 模式分析
 description: future-agi observability 仓 PR 模式 + zsxh1990 PR #778 + 克莱恩亲自 check-in
 repo: future-agi/future-agi
 url: https://github.com/future-agi/future-agi
-star: 1266
+star: 2103
 language: Python
 zsxh_pr_count: 1
-status: in-flight-priority
-analyzed_at: 2026-07-01
-needs_reverify: true  # 2026-10-01 校验: 分析已 >90d 未重验, 显式标记; 不改 analyzed_at
-priority_reason: 克莱恩 2026-06-28 14:25 GMT+8 亲自发了 friendly check-in
+status: closed-no-merge  # 2026-10-01 重验: #778 已于 2026-08-02 由 zsxh1990 自行 close（8 周零 maintainer 响应）
+analyzed_at: 2026-10-01
+priority_reason: 历史：克莱恩 2026-06-28 14:25 GMT+8 亲自发过 friendly check-in（仍无 maintainer 回应）；2026-08-02 已 close 销账
 tags:
   - repo-profile
   - observability
@@ -27,28 +26,28 @@ agent_guidelines:
   ai_policy: welcoming
   ai_assisted_disclosure: false
   human_required_in: []
-  maintainer_vibe: slow
+  maintainer_vibe: slow  # 2026-10-01 重验: 我方 #778 8 周零人类响应; 但仓内部团队极活跃 (30d 337 merged)
   bot_review: entelligence
   ci_first_run_needs_approval: false
   default_branch: main
-  response_time_h_median: 168  # 3-7 天
-  merge_rate_30d: null
+  response_time_h_median: null  # 未核实: 我方 PR 至今零人类响应, 无样本可算
+  merge_rate_30d: 0.894  # 2026-09-01→2026-10-01: 337 merged / 40 closed-unmerged (GH search)
   close_keywords: []
   one_pr_friendly: false  # PR 评审慢，多 PR 风险高
 misakanet_queries:
   - misakanet/lessons/contrib/friendly-checkin-template.md  # Ikalus1988 发的 friendly check-in 模板
 misakanet_lessons: []
 federation_status: declared-2026-07-02
-verified_at: "2026-07-05T14:53:11.740158Z"
+verified_at: "2026-10-01T13:29:03Z"
 evidence_urls:
   - https://github.com/future-agi/future-agi
   - https://api.github.com/repos/future-agi/future-agi
   - https://api.github.com/repos/future-agi/future-agi/releases/latest
   - https://api.github.com/repos/future-agi/future-agi/commits
 confidence: high  # autogen from GH API; bump to medium if human-curated
-last_release: 0.5.10
-last_commit_sha: ee70af01
-stars: 1304
+last_release: v1.45.0
+last_commit_sha: d794a49b
+stars: 2103
 agent_guidelines_evidence:
   allow_unsolicited_pr: https://github.com/future-agi/future-agi/blob/main/CONTRIBUTING.md
   require_issue_first: https://github.com/future-agi/future-agi/blob/main/CONTRIBUTING.md
@@ -63,27 +62,29 @@ agent_guidelines_evidence:
 
 > Future AGI 是 AI 可观测性平台（tracing + evaluation）。  
 > **AI 友好度**：中（entelligence-ai-pr-reviews bot 配置 = 半主动迎 AI）。  
-> **zsxh1990 PR 经验**：1 个 open（#778）+ **克莱恩亲自发了 check-in**。
+> **zsxh1990 PR 经验**：1 个（#778，2026-08-02 自行 close，零 maintainer 响应）。  
+> **2026-10-01 重验**：star 1.3k→2.1k，仓极活跃（30d 337 merged，今天连发 v1.45.0），但对外部 PR 静默。
 
 ---
 
-## 1. 友好度画像
+## 1. 友好度画像（2026-10-01 重验）
 
 - ✅ entelligence-ai-pr-reviews bot（半自动 AI review）
-- ⚠️ 中型 startup，maintainer 响应 3-7 天
-- ⚠️ bot review 不等于 maintainer 通过
+- ✅ 仓极活跃：30d 337 merged / 40 closed = 89.4%；版本号从 0.5.10 跳到 v1.45.0（release-please 风格日更）
+- ⚠️ **对外部 PR 静默**：我方 #778 开 8 周零人类 maintainer 回复（bot review ≠ maintainer 通过）
+- ⚠️ 近期 merged 样本（10 个）以内部/常驻贡献者为主（khushalsonawat、commitPirate、JayaSurya-27、cdileep23 + futureagi-release-bot）
 
 ---
 
-## 2. zsxh1990 PR 进展（**优先级最高**）
+## 2. zsxh1990 PR 进展
 
-### 🟢 #778 [feat: enable span list view without project_id](https://github.com/future-agi/future-agi/pull/778)
+### 🔴 #778 [feat: enable span list view without project_id](https://github.com/future-agi/future-agi/pull/778) — closed-not-merged
 
-| 维度 | 数据 |
+| 维度 | 数据（2026-10-01 核实） |
 |---|---|
-| 创建 | 2026-06-04 10:55 UTC（**27 天前**） |
-| 最后活动 | 2026-06-28 07:25 UTC（3 天前） |
-| 状态 | open |
+| 创建 | 2026-06-04 10:55 UTC |
+| 关闭 | **2026-08-02 05:41 UTC 由 zsxh1990 自行 close** |
+| 状态 | closed，merged=false |
 | +2 / -2 / 1 file | 极小 |
 | entelligence review | 2 findings + 1 comment |
 
@@ -97,6 +98,9 @@ agent_guidelines_evidence:
 | 2026-06-08 16:38 | entelligence AI 第 2 轮 review |
 | 2026-06-28 07:25 | **@Ikalus1988 亲自发 friendly check-in** |
 | 2026-06-30 14:45 | 太阳 heartbeat 标记 priority |
+| 2026-07-07 | zsxh1990 第二次 check-in |
+| 2026-07-23 | zsxh1990 报告冲突并询问 "Is this feature still needed?"（上游已大改） |
+| 2026-08-02 05:41 | **zsxh1990 自行 close**："open for 8 weeks with no response to conflict resolution question. Happy to reopen if there's interest." |
 
 **克莱恩 6/28 14:25 GMT+8 发的 check-in 原文**：
 
@@ -124,12 +128,16 @@ agent_guidelines_evidence:
 
 ---
 
-## 4. 优先级行动项
+## 4. 处置结论（2026-10-01 重验）
 
-**下次太阳心跳时**：
-1. 查看 #778 是否有 maintainer 回应
-2. 如果仍无回应 → zsxh1990 再发一条："Friendly bump — any feedback on this one?"
-3. 7 天无回应 → 主动 close（学 OpenClaw ClawSweeper 优雅退出）
+**已完结**：#778 于 2026-08-02 按 ClawSweeper 优雅退出规则自行 close（8 周零回应，含一次冲突确认问询）。
+
+**教训（可复用）**：
+- bot review（entelligence）积极 ≠ maintainer 会看
+- 上游大改导致冲突后再问 "still needed?" 仍无回应 → 就是无声拒绝，close 是正确动作
+- 本仓内部开发极活跃（30d 337 merged）但对外部小 PR 路过型无视——**下次投递前先在 issue 确认需求，别直接开 PR**
+
+**如要重启**：先确认 span list 需求是否已被内部实现（仓 2 个月 337 个 merge，很可能已覆盖），再决定是否 reopen。
 
 ---
 

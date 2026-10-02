@@ -4,12 +4,12 @@ title: mongodb-js/mongodb-mcp-server PR 模式分析
 description: MongoDB 官方 MCP server 仓 PR 模式 + zsxh1990 PR #1309 经验
 repo: mongodb-js/mongodb-mcp-server
 url: https://github.com/mongodb-js/mongodb-mcp-server
-star: 1073
+star: 1138
 language: TypeScript
 zsxh_pr_count: 1
 status: in-flight
 data_source: zsxh PR #1309
-analyzed_at: 2026-07-03
+analyzed_at: 2026-10-02
 evidence_urls:
   - https://github.com/mongodb-js/mongodb-mcp-server
   - https://api.github.com/repos/mongodb-js/mongodb-mcp-server
@@ -39,8 +39,8 @@ agent_guidelines:
   bot_review: none
   ci_first_run_needs_approval: false  # fork PR 默认走外部 CI
   default_branch: main
-  response_time_h_median: 48
-  merge_rate_30d: 0.80  # 16/20 最近 20 closed PR
+  response_time_h_median: null  # 未核实: 2026-10-02 重验时无可靠样本, 原 48h 为估算已撤
+  merge_rate_30d: 0.935  # 2026-10-02 重验: 87 merged / (87+6) closed = 93.5% (原 0.80 为 2026-07-03 的 20 PR 小样本)
   close_keywords: []
   one_pr_friendly: true  # 1-file docs PR 友好
 verified_at: 2026-07-03

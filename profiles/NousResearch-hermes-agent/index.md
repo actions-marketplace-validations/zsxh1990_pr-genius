@@ -4,7 +4,7 @@ title: NousResearch/hermes-agent PR 模式分析
 description: NousResearch 旗下 hermes-agent 仓 PR 模式 + 友好度 + 提 PR 方向 + SOP。仓哲学与 MisakaNet 完全同位（"The agent that grows with you"）
 repo: NousResearch/hermes-agent
 url: https://github.com/NousResearch/hermes-agent
-star: 208355
+star: 250618
 forks: 37918
 language: Python
 license: MIT
@@ -12,7 +12,7 @@ default_branch: main
 zsxh_pr_count: 0
 data_source: 300 PR 深度调研 (200 merged + 100 closed-not-merged, 2026-07-03)
 deep_research: ../../hermes-agent-pr-knowledge/report.md
-analyzed_at: 2026-07-03
+analyzed_at: 2026-10-02
 status: scout-phase  # 调研完成，未提 PR
 evidence_urls:
   - https://github.com/NousResearch/hermes-agent
@@ -43,8 +43,9 @@ agent_guidelines:
   bot_review: heavy  # 大量 dependabot + 自定义 workflow（pr-screenshots 目录存在）
   ci_first_run_needs_approval: false  # fork PR 默认走外部 CI
   default_branch: main
-  response_time_h_median: 72  # 估算：3 天
-  external_merge_rate_30: 0.473  # 2026-07-03 300 PR 深度调研修正：89/(89+99) = 47.3%
+  response_time_h_median: null  # 未核实: 2026-10-02 重验时无可靠样本可算中位数, 原 72h 为估算值已撤
+  external_merge_rate_30: 0.473  # 2026-07-03 口径(仅外部作者, 300 PR 深度调研): 89/(89+99)=47.3%; 本次未复现该口径
+  merge_rate_30d_all: 0.343  # 2026-10-02 重验(全量PR, 非仅外部): 4479 merged / (4479+8612) closed = 34.3%; 拒稿率高
   external_merge_rate_30_initial_estimate: 0.13  # 早期 30 PR 估算（被 300 PR 修正）
   overall_merge_rate_300: 0.667  # 200/300 = 66.7% 含 owner
   close_keywords: ["maintenance load", "not quality", "placement decision"]
