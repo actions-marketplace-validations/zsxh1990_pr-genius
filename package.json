@@ -52,6 +52,23 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ],
+      "platform": "web"
+    },
+    "compatibility": {
+      "dshReleases": {
+        "0.1.5-rc.1": "planned",
+        "0.1.7-rc.2": "planned",
+        "0.2.0-rc.2": "planned"
+      }
     }
   },
   "peerDependencies": {
@@ -61,6 +78,7 @@
     "schemastery": "^3.18.0"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh": "0.2.0-rc.2",
     "@types/node": "^26.6.3",
     "cordis": "4.0.0-rc.10",
     "oxlint": "^1.86.0",
