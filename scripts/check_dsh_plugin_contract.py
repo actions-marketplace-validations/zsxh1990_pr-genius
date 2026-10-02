@@ -168,7 +168,9 @@ if pkg_path.is_file():
 
 # A package nobody can install without cloning is not converged. dshfind
 # currently ships pr-genius from git source for exactly this reason.
-manifests = [n for n in ("pyproject.toml", "setup.py", "setup.cfg") if (ROOT / n).is_file()]
+# 清单在子包里（prgenius/pyproject.toml，包名 prgenius-core），不在仓根 —— 只看根目录
+# 会把「有清单」误判成「没清单」。
+manifests = [n for n in ("prgenius/pyproject.toml", "pyproject.toml", "setup.py", "setup.cfg") if (ROOT / n).is_file()]
 ok(bool(manifests), f"a Python packaging manifest exists ({', '.join(manifests) or 'none found'})")
 if not manifests:
     warn(

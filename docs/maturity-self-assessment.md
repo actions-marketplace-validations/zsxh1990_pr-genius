@@ -86,7 +86,8 @@ Maintainer 13.5 ≈ 91（S 级）。其中：
 | **Activity** | **不自评、不伪造。** 这是提交频率与活跃度的社区统计，需要真实时间跨度 |
 | **Star heat** | **不自评、不伪造。** dsh-context 的 28.6 分来自 1,802 star / 21.4 万下载。pr-genius 现在是 star 2 |
 | **Engineering** | 可自证的部分见轴二：工具链齐（tsdown + oxlint + node:test + 严格 tsconfig）、契约符合性 **27/27**、34 测试全绿 |
-| **Maintainer** | 可自证的部分：`pyproject.toml` 已补（此前**完全没有打包清单**，这是 dshfind 只能 git 源码装的根因）、`docs/compatibility.md`、`locale/`、MIT |
+| **Maintainer** | 可自证的部分：`docs/compatibility.md`、`locale/`、MIT、版本单一来源（`prgenius/pyproject.toml` → `sync_version.py` 扇出到 server.json/glama.json/package.json/Dockerfile） |
+| | ⚠️ **更正**：本节早先写过「此前完全没有打包清单」——**那是错的**。清单一直在 `prgenius/pyproject.toml`（包名 `prgenius-core`，为避开 PyPI 同名冲突而改名），我只查了仓根就下了结论，还在 commit message 里写了一遍。发版前自查时发现，已删除误建的根 `pyproject.toml` 重复件。**教训：断言「某个文件不存在」前要 find 全仓，不能只看一层。** |
 
 **明确不给四维总分。** 没有 Activity 与 Star heat 的真实数据，任何总分都是编的。
 

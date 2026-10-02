@@ -1,6 +1,6 @@
 {
   "name": "pr-genius",
-  "version": "2.0.0-alpha.0",
+  "version": "2.0.0",
   "description": "PR 评估和建议工具 — 基于历史反模式和成功模式。DSH (Cordis) 插件壳 + Python FastMCP 分析引擎。",
   "author": "zsxh1990",
   "license": "MIT",
@@ -22,28 +22,32 @@
   },
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
     },
     "./config": {
-      "types": "./src/config.ts",
-      "default": "./src/config.ts"
-    },
-    "./package.json": "./package.json"
+      "types": "./dist/config.d.mts",
+      "default": "./dist/config.mjs"
+    }
   },
   "files": [
+    "dist",
     "src",
     "skill",
     "anti-patterns",
     "success-patterns",
     "profiles",
     "docs/policies",
+    "locale",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/"
+    "test": "node --test test/",
+    "build": "tsdown",
+    "prepublishOnly": "npm run build && npm test"
   },
   "dsh": {
     "bundle": {
@@ -63,5 +67,10 @@
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "publishConfig": {
+    "access": "public"
   }
 }

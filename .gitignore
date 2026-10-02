@@ -52,3 +52,4 @@ token.txt
 # DSH 插件构建产物
 node_modules/
 dist/
+.claude/
