@@ -14,6 +14,9 @@ trigger_keywords:
 fix_action: "1) 逐条比对：给定命令的真实输出 vs 贴出来的输出，不一致即作废；2) 确认截图/日志里有没有工具调用时间线（缺时间线=人工摘要）；3) 环境字段要能被机器复核（sw_vers / node --version / python --version）；4) 拿不准就撤回，不要补数据"
 source_pr: "Ikalus1988/MisakaNet#1819 (comment 5925609094, retracted in 5926811805)"
 severity: critical
+# 结构性反模式：trigger_keywords 只做弱命中（降级为 high 列清单），
+# 只有 structural.py 的结构证据（输出与命令必然输出不一致等）才按 critical 阻塞
+match_mode: structural
 evidence:
   - "MisakaNet #1819: 贴出 `python3 -c \"import testpkg; print(testpkg.hello())\"` 的输出写成 `SUCCESS: world`，但被调函数返回 \"world\"，print 只会打 `world`"
   - "同一条 T2 的「修复」是 `pip install -e .` 装本地包，完全绕开题目的受限网络考点，成功判据因此从未被测到"

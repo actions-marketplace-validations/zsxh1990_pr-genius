@@ -14,6 +14,9 @@ trigger_keywords:
 fix_action: "1) 先拿真实数据量命中率：grep 语料统计每个字段的出现次数、git cat-file -e <branch>:<path> 验文件；2) 命中为 0 的字段/文件不能驱动状态；3) 把「查不到」与「尚未发生」分成两个可区分的返回；4) 复用仓里已有的 lookup helper，别另写匹配器"
 source_pr: "Ikalus1988/MisakaNet PR #2494 (comment 5927372088)"
 severity: high
+# 结构性反模式：关键词弱命中 + structural.py 的结构证据（data/*.jsonl 引用、
+# frontmatter 字段驱动状态）都只列清单不阻塞，提示先给命中数证据
+match_mode: structural
 evidence:
   - "PR #2494 用 meta.intake_id / contrib_id / source_issue / related_issues 判定转换：461 条 lesson 实测命中 0/0/0/0，而真实存在的 provenance 命中 428"
   - "同一 PR 的更早版本读 data/contribution_queue.jsonl 与 data/intake_receipts.jsonl，两个文件在 upstream/main 上都不存在（git cat-file -e 确认 ABSENT）"

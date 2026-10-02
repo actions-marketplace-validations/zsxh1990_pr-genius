@@ -14,6 +14,26 @@ GitHub tag/release compare links per Keep a Changelog guidance.
 - **Git Tag**：仓库标签
 - **Milestone**：功能里程碑（可能跨多个 tag）
 
+## [Unreleased]
+
+### Added
+- **coach 结构性检查 (issue #45)**: `prgenius/src/prgenius/structural.py` — 纯静态启发式，
+  不执行 PR 代码，覆盖两条表层关键词抓不到的结构性反模式
+  - `fabricated-evidence-in-claim`: 代码块里贴的输出与命令必然输出不一致
+    （`print(表达式)` 却贴出 `SUCCESS:` 前缀 → critical，需人工复核，阻塞）；
+    贴了输出但全篇无可核对命令 → high，需人工复核，列清单不阻塞
+  - `state-derived-from-nonexistent-source`: 引用 `data/*.jsonl` 或 frontmatter
+    字段驱动状态 → high，列清单并提示"先给命中数证据"
+- **coach 退出码约定**: severity=critical 反模式命中 → exit 1 阻塞；
+  severity=high → exit 0 但列进 checklist（P1）；非反模式 high 信号（merge_conflict 等）语义不变
+- **pytest 回归**: `prgenius/tests/test_structural_checks.py` — 含 review-cases/
+  302 条真实 PR 案例误报回归（防"泛词误报导致 coach 一律 high_risk"复发）
+
+### Changed
+- **anti-pattern 匹配**: `check_anti_patterns()` 命中项新增 `severity`/`match_mode`/
+  `match_type` 字段；`match_mode: structural` 的反模式关键词弱命中降级为 high
+  （列清单不阻塞），只有结构证据才按声明 severity 走
+
 ## [1.9.1] — Dockerfile Fix for Glama Build
 
 ### Fixed
