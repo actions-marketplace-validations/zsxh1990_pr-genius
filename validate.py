@@ -931,10 +931,12 @@ def main() -> int:
             # frontmatter 里 (analyzed_at 不动, 不伪造新鲜度), 警告照印但不挡门。
             # 未标记的超期警告仍然 critical。
             "marked needs-reverify" in w or
-            # review-case evidence (check 9): 存量 302 条是已声明债务 (方案 G1
-            # "存量分期补"), 不带 --enforce-evidence 时只警告不挡 --strict;
-            # 带 --enforce-evidence 时 findings 进 errors, 走 `if errors: return 1`。
-            "[evidence-gate]" in w
+            # review-case evidence (check 9), 方案 G1 "新增记录强制带上, 存量分期补":
+            #   - `[evidence-gate/declared-debt]` = 存量已声明债务, 警告照印但不挡门。
+            #   - `[evidence-gate]` (无 declared-debt) = **新增**记录缺证据, 必须挡。
+            #     这条不能进 carve-out —— 否则"新增记录强制带上"就成空话。
+            # 带 --enforce-evidence 时两条都进 errors, 走 `if errors: return 1`。
+            "[evidence-gate/declared-debt]" in w
         )]
         if critical_warnings:
             return 1
