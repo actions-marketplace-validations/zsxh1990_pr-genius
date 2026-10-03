@@ -15,7 +15,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import { planRegistrations, SURFACE_IDS } from './ui/surfaces.ts'
 // 导入 client 层是让它进 bundle 的唯一途径 —— 此前它只是躺在 src/client/ 里
 // 未被引用，所以 tsc 通过、bundle 里却没有它（issue #90）。
-import { Dashboard, Advisor, AdvisorPanel, Preferences, type AdvisorFace } from './client/AdvisorPanel.tsx'
+import { surfaceComponents, type AdvisorFace } from './client/AdvisorPanel.tsx'
+import { } from './client/slots.ts'
 import {
   Config,
   PrGeniusConfigError,
@@ -165,20 +166,12 @@ export function apply(ctx: Context, config: Config): void {
   const disposeService = ctx.provide('prGenius', service)
 
   // ── 四个界面 ──────────────────────────────────────────────────────────
-  // 落点来自 docs/dsh-ui-slot-api.md 的权威 slot 表，四个界面的 slot 归属收敛在
-  // SURFACE_PLAN 一处，可被测试断言（assertSlotPlacement），不靠渲染验证。
-  //
-  // 命令面走 ctx.command（教程明文 API）。UI slot 面走能力探测：ui-slots 的
-  // 组件形态与 renderer 约定属于运行时契约，本机无 DEEPSEEK_API_KEY 跑不起 DSH，
-  // 所以这里只在宿主真的提供 slots 服务时才注册，并把组件实现留给 UI 层注入。
-  // 宁可少注册一个面，也不假称「已渲染」。
-  // 四个界面各自的组件。Tab 与 Panel 共用 Advisor —— 换落点不换逻辑。
-  const COMPONENTS: Record<string, ((face: AdvisorFace) => unknown) | null> = {
-    [SURFACE_IDS.dashboard]: Dashboard,
-    [SURFACE_IDS.advisorTab]: Advisor,
-    [SURFACE_IDS.advisorPanel]: AdvisorPanel,
-    [SURFACE_IDS.preferences]: Preferences,
+  const face: AdvisorFace = {
+    service, locale: resolved.locale,
+    workMode: resolved.maintainer.enabled ? 'maintainer' : 'contributor',
+    riskFilter: resolved.riskFilter,
   }
+  const COMPONENTS = surfaceComponents(face)
 
   const surfaceDisposers: Array<() => void> = []
 
@@ -220,20 +213,33 @@ export function apply(ctx: Context, config: Config): void {
     slotsCtx.slots?.inject &&
     slotsCtx.slots?.register
   ) {
+    // 运行时探测：候选落点里挑宿主真的提供的那个。
+    // 不静态硬编码争议 key —— pinned SDK 与 upstream 的 catalog 不一致
+    // （42 vs 92 keys，右栏落点分别是 details / sidebar.right.pane.tab），
+    // 谁存在用谁；都不存在就不注册。宁缺勿假。
     for (const surface of planRegistrations()) {
       if (surface.kind === 'command') continue
-      try {
-        const dispose = slotsCtx.slots.inject(surface.slot, () =>
-          slotsCtx.slots!.register!(
-            { name: surface.id, kind: surface.kind },
-            // 真实组件，不再是 null —— null 注册等于占了位置却不渲染（issue #86/#90）。
-            COMPONENTS[surface.id] ?? null,
-          ),
-        )
-        surfaceDisposers.push(dispose)
-        logger.info('surface registered: %s -> %s', surface.id, surface.slot)
-      } catch (err) {
-        logger.warn('surface %s not registered on %s: %s', surface.id, surface.slot, String(err))
+      const candidates: string[] = Array.isArray((surface.seat as { candidates?: string[] } | null)?.candidates)
+        ? ((surface.seat as { candidates?: string[] }).candidates as string[])
+        : [surface.seat].filter(Boolean).map((x) => (x as { key?: string }).key ?? '')
+      // 真探测：逐个候选试注册，宿主不认就换下一个。不靠"key 非空"这种假探测。
+      let registered = false
+      for (const key of candidates) {
+        if (!key) continue
+        try {
+          const dispose = slotsCtx.slots!.inject!(key, () =>
+            slotsCtx.slots!.register!({ name: surface.id, id: surface.id, label: surface.id },
+              COMPONENTS[surface.id] ?? null))
+          surfaceDisposers.push(dispose)
+          logger.info('surface registered: %s -> %s', surface.id, key)
+          registered = true
+          break
+        } catch (err) {
+          logger.warn('surface %s: slot %s rejected (%s); trying next candidate', surface.id, key, String(err))
+        }
+      }
+      if (!registered) {
+        logger.warn('surface %s: no candidate slot accepted; not registered (宁缺勿假): %j', surface.id, candidates)
       }
     }
   } else {

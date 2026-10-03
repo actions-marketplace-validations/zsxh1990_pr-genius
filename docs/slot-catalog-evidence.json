@@ -1,0 +1,747 @@
+{
+ "provenance": {
+  "source": "deepseek-ai/deepseek-harness",
+  "path": "packages/extensions/cordis-client-runner/src/client/slot-catalog.ts",
+  "fetchedVia": "gh api repos/deepseek-ai/deepseek-harness/contents/... (base64 content field)",
+  "fetchedOn": "2026-10-03",
+  "note": "Generated mechanically from the fetched file. deepseek-ai/deepseek-harness-sdk does not exist (404); the catalog lives in deepseek-ai/deepseek-harness. key count in this snapshot: 92. A maintainer's '41 slots' figure does not match this file."
+ },
+ "entries": [
+  {
+   "key": "conversation.approval.detail",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Optional detail for the Tool call correlated with an approval request."
+  },
+  {
+   "key": "conversation.chat.assistant-actions",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Ordered actions for one finalized assistant message."
+  },
+  {
+   "key": "conversation.chat.commandview",
+   "kind": "keyed",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Command row keyed by the command name."
+  },
+  {
+   "key": "conversation.chat.node",
+   "kind": "keyed",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Final Chat node renderer, keyed by `ChatNodeKind`."
+  },
+  {
+   "key": "conversation.chat.turnTail",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "conversation.composer",
+   "kind": "chain",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "conversation.composer.bar",
+   "kind": "single",
+   "scope": "session-maybe",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Resident composer body, including the no-Session inert state."
+  },
+  {
+   "key": "conversation.composer.dock",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Ambient entries below the composer card."
+  },
+  {
+   "key": "conversation.header",
+   "kind": "single",
+   "scope": "session-maybe",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Resident navigation container, including when no Session is selected."
+  },
+  {
+   "key": "conversation.header.leading",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Global navigation before the Session title, available without a Session."
+  },
+  {
+   "key": "conversation.hero.agentPreset",
+   "kind": "single",
+   "scope": "session-maybe",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Agent-preset control staged for a New Session."
+  },
+  {
+   "key": "conversation.hero.brand.mark",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Brand mark shown before the blank-session headline."
+  },
+  {
+   "key": "conversation.hero.workspace",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Workspace picker shown by the blank-session Hero."
+  },
+  {
+   "key": "conversation.hero.workspace.directoryFlow",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Directory-flow hole under the conversation empty-state picker (declared by the WorkspacePicker entry)."
+  },
+  {
+   "key": "conversation.input.activity",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Compact action after the model selector; it can expand across the toolbar while retaining the editor and submit action."
+  },
+  {
+   "key": "conversation.input.attachments",
+   "kind": "single",
+   "scope": "session-maybe",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Optional draft-attachment rail and drop target."
+  },
+  {
+   "key": "conversation.input.dock",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Full-width entries above the composer card."
+  },
+  {
+   "key": "conversation.input.left",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Compact controls at the left of the composer tool row."
+  },
+  {
+   "key": "conversation.input.model",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Model selector inside the composer tool row."
+  },
+  {
+   "key": "conversation.input.overlay",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Floating entries rendered inside the resident composer card."
+  },
+  {
+   "key": "conversation.input.permission",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Current-session permission control inside the composer tool row."
+  },
+  {
+   "key": "conversation.input.plan",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Plan control inside the composer tool row."
+  },
+  {
+   "key": "conversation.input.right",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Compact controls before the composer submit action."
+  },
+  {
+   "key": "conversation.message.images",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Renderer for one consecutive group of durable message images."
+  },
+  {
+   "key": "conversation.plan-review.actions",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Actions for the exact plan under review; approval remains with the question composer."
+  },
+  {
+   "key": "conversation.session",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Strict per-Session Conversation body."
+  },
+  {
+   "key": "conversation.session.header",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Strict per-Session title, actions, and View navigation."
+  },
+  {
+   "key": "conversation.session.header.actions",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Title-adjacent Session actions in ascending order."
+  },
+  {
+   "key": "conversation.session.header.corner",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "conversation.session.header.lineage",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Optional replacement for one Session breadcrumb title."
+  },
+  {
+   "key": "conversation.session.header.utilities",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Right-aligned Session utilities in ascending order."
+  },
+  {
+   "key": "conversation.trajectory.images",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Renderer for one group of durable record images in the Trajectory ledger."
+  },
+  {
+   "key": "conversation.view",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Registered Conversation target Views, rendered one at a time."
+  },
+  {
+   "key": "deliverables.file.actions",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Open one file through its authorized Session event coordinates."
+  },
+  {
+   "key": "deliverables.review.file.actions",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "The same file actions owned by a changed-file review tab."
+  },
+  {
+   "key": "main",
+   "kind": "keyed",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Central panel selected by sidebar entry id."
+  },
+  {
+   "key": "main.conversation",
+   "kind": "single",
+   "scope": "session-maybe",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Conversation shell beneath its root-scoped main-panel entry."
+  },
+  {
+   "key": "plugins.add.actions",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Additional MenuItemButton rows after installation: 72px high, with a title and a description capped at two lines."
+  },
+  {
+   "key": "plugins.bundle.activation",
+   "kind": "keyed",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Optional guidance after the user enables a bundle from the list, keyed by npm package name."
+  },
+  {
+   "key": "plugins.bundle.config",
+   "kind": "keyed",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "plugins.detail.actions",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "plugins.detail.badge",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "plugins.detail.section",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "plugins.item",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "plugins.row.config",
+   "kind": "keyed",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "rightbar",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "The right column: a track the centre makes room for, or nothing."
+  },
+  {
+   "key": "rightbar.session",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Session content selected by the root-scoped right Sidebar controller."
+  },
+  {
+   "key": "root",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": "the runtime itself (built in; always present)",
+   "summary": "The built-in render-tree root hole (seeded by SlotCore): the one slot the shell itself renders, and the ancestor of every other seat."
+  },
+  {
+   "key": "settings.action",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Optional actions rendered in the content-column header before Close."
+  },
+  {
+   "key": "settings.close",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "settings.general.item",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "One preference row inside the General section — the additive seat for a single setting that needs no page of its own (a whole page is `settings.section`), contributed by the feature plugin that owns the preference (locale → Language, ui-theme → Appearance, ui-conversation → Composer Enter)."
+  },
+  {
+   "key": "settings.header",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "The panel title text seat."
+  },
+  {
+   "key": "settings.launcher",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Optional sidebar account launcher; opens the shell-owned settings panel."
+  },
+  {
+   "key": "settings.models.footer",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Ordered extension area after the provider rows and the add controls."
+  },
+  {
+   "key": "settings.models.provider-card",
+   "kind": "keyed",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "settings.models.sign-in",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Optional account login choice before the credential editor."
+  },
+  {
+   "key": "settings.onboarding",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Root-scoped onboarding steps contributed by settings features."
+  },
+  {
+   "key": "settings.plugins.tab",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "One page inside the Plugins settings section."
+  },
+  {
+   "key": "settings.section",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "One settings page per list entry."
+  },
+  {
+   "key": "settings.trigger",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "The sidebar-foot trigger row content: icon + label, supplied as slot content (the accessible name comes from the content — rail state renders the label visually hidden)."
+  },
+  {
+   "key": "shell.bottom",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Full-width bottom content below all three columns."
+  },
+  {
+   "key": "shell.leading",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "shell.overlay",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Frame-wide floating layer, above every column and outside their scroll containers."
+  },
+  {
+   "key": "shell.quota-notice",
+   "kind": "chain",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Frame-wide quota notice chain."
+  },
+  {
+   "key": "sidebar",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "The whole left column."
+  },
+  {
+   "key": "sidebar.brand.mark",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Brand mark rendered in the expanded brand row and collapsed rail."
+  },
+  {
+   "key": "sidebar.brand.name",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Brand name rendered beside the expanded mark."
+  },
+  {
+   "key": "sidebar.chat.conversation",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Session-scoped Conversation occurrence hosted by one Sidebar chat tab."
+  },
+  {
+   "key": "sidebar.footer.action",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Optional actions beside Settings at the sidebar foot."
+  },
+  {
+   "key": "sidebar.panellist",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Global panel icons."
+  },
+  {
+   "key": "sidebar.right.pane.tab",
+   "kind": "keyed",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.right.pane.tab.title",
+   "kind": "keyed",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.right.tab.document",
+   "kind": "keyed",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Document body selected by a registered implementation id."
+  },
+  {
+   "key": "sidebar.right.tab.document.action",
+   "kind": "keyed",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.right.tab.document.actions",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.right.tab.document.office.pdf",
+   "kind": "keyed",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "PDF presentation supplied with Office-owned converted bytes."
+  },
+  {
+   "key": "sidebar.right.tab.document.unpreviewable",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.right.tab.files.actions",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.right.tab.guide",
+   "kind": "chain",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.right.tab.guide.entry",
+   "kind": "keyed",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.right.tab.menu.item",
+   "kind": "list",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.session.row.hover",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.session.row.leading",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.settings",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "The settings seat at the sidebar foot."
+  },
+  {
+   "key": "sidebar.toggle.badge",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Non-interactive notification inside the collapsed sidebar expand button."
+  },
+  {
+   "key": "sidebar.workspaces",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "The workspace/session browsing region: section header, search, the grouped/flat session list, and every workspace dialog."
+  },
+  {
+   "key": "sidebar.workspaces.directoryFlow",
+   "kind": "single",
+   "scope": "root",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Directory-flow hole under the sidebar browsing region (declared by the WorkspaceBrowser entry)."
+  },
+  {
+   "key": "sidebar.workspaces.session.menu.item",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": null
+  },
+  {
+   "key": "sidebar.workspaces.session.row.action",
+   "kind": "list",
+   "scope": "root",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "The hover buttons at the end of one Session row, in ascending `order`, after the \"...\" menu trigger."
+  },
+  {
+   "key": "tool.call.images",
+   "kind": "single",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Durable images of a settled image-bearing Tool call, rendered through the attachment presentation plugin."
+  },
+  {
+   "key": "tool.call.toolview",
+   "kind": "keyed",
+   "scope": "session",
+   "replaceRisk": "shadows-shipped-ui",
+   "declaredBy": null,
+   "summary": "Keyed Tool call view dispatched by wire Tool name."
+  },
+  {
+   "key": "tool.view.cordis",
+   "kind": "keyed",
+   "scope": "session",
+   "replaceRisk": "none",
+   "declaredBy": null,
+   "summary": "Interactive Package-owned region rendered inside the latest eligible `cordis_run` card in the conversation flow."
+  }
+ ]
+}
