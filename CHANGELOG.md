@@ -6,6 +6,35 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.1.4] - 2026-10-03
+
+> **Cut for one reason: so the claim "a runtime gate signed off on this" becomes true in CI.**
+>
+> 2.1.3 carried that line, and it was only half accurate. The gate passed locally
+> and in `prepublishOnly`, but the CI leg never ran — `actions/setup-node` with
+> `cache: pnpm` was ordered before `pnpm/action-setup`, so it died with
+> "Unable to locate executable file: pnpm" before the gate started. That order is
+> fixed on `main` (`ac8ab6a`), and this tag is what exercises it.
+
+### Fixed
+- `release-smoke.yml` installs pnpm before `setup-node`'s pnpm cache. `setup-node`
+  shells out to `pnpm` to resolve the lockfile; when it is not on PATH yet the
+  workflow fails at setup and the gate never runs. The gate was never the problem
+  — the workflow never reached it.
+
+### No behavioural change
+
+The plugin code is identical to 2.1.3. This release exists so that the next
+"gate signed off" claim is checkable in the Actions tab rather than only on my
+machine.
+
+### Still true
+
+The gate proves `apply()` emits calls that land on SDK-declared seats with a
+non-null component. It does **not** prove anything renders — no `DEEPSEEK_API_KEY`
+here, and pr-genius has never mounted in a real DSH web host.
+
+
 ## [2.1.3] - 2026-10-03
 
 > First release that a **runtime gate** signed off on. Everything before this was
