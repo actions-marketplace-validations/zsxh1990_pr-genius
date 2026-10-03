@@ -601,22 +601,22 @@ def cmd_auto_ping(args) -> int:
         print("Dry-run mode. Use --confirm to execute pings.")
         return 0
 
-    # Execute pings (only for ping_suggested, not abandon)
-    import subprocess
+    # Execute pings (only for ping_suggested, not abandon).
+    # go through gh_api_request so the gh→curl+token fallback applies here too
+    # (issue #55: WSL / containers without an executable `gh`).
+    from .status import gh_api_request
     for p in pingable:
+        # Add a comment to ping the maintainer
+        comment = f"👋 Friendly ping — this PR has been waiting for review for {p['days_since_update']} days. Is there anything I can do to help move this forward?"
         try:
-            # Add a comment to ping the maintainer
-            comment = f"👋 Friendly ping — this PR has been waiting for review for {p['days_since_update']} days. Is there anything I can do to help move this forward?"
-            subprocess.run(
-                ["gh", "pr", "comment", str(p["number"]),
-                 "--repo", p["repo"],
-                 "--body", comment],
-                check=True, capture_output=True, text=True,
-                encoding="utf-8", errors="replace",
+            gh_api_request(
+                f"repos/{p['repo']}/issues/{p['number']}/comments",
+                method="POST",
+                fields={"body": comment},
             )
             print(f"  ✅ Pinged {p['repo']}#{p['number']}")
-        except subprocess.CalledProcessError as e:
-            print(f"  ❌ Failed to ping {p['repo']}#{p['number']}: {e.stderr.strip()}", file=sys.stderr)
+        except RuntimeError as e:
+            print(f"  ❌ Failed to ping {p['repo']}#{p['number']}: {e}", file=sys.stderr)
 
     return 0
 
@@ -655,21 +655,17 @@ def cmd_auto_rebase(args) -> int:
         print("Dry-run mode. Use --confirm to attempt rebases.")
         return 0
 
-    # Execute rebases via GitHub API (update branch)
-    import subprocess
+    # Execute rebases via GitHub API (update branch).
+    # gh_api_request keeps the gh→curl+token fallback working without `gh` (issue #55).
+    from .status import gh_api_request
     for p in rebaseable:
         try:
-            # Use gh to update the branch (equivalent to clicking "Update branch" in UI)
-            result = subprocess.run(
-                ["gh", "api", f"repos/{p['repo']}/pulls/{p['number']}/update-branch",
-                 "-X", "PUT"],
-                capture_output=True, text=True,
-                encoding="utf-8", errors="replace",
+            # Update the branch (equivalent to clicking "Update branch" in the UI)
+            gh_api_request(
+                f"repos/{p['repo']}/pulls/{p['number']}/update-branch",
+                method="PUT",
             )
-            if result.returncode == 0:
-                print(f"  ✅ Rebased {p['repo']}#{p['number']}")
-            else:
-                print(f"  ❌ Failed {p['repo']}#{p['number']}: {result.stderr.strip()}")
+            print(f"  ✅ Rebased {p['repo']}#{p['number']}")
         except Exception as e:
             print(f"  ❌ Error {p['repo']}#{p['number']}: {e}", file=sys.stderr)
 
