@@ -6,6 +6,50 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.1.1] - 2026-10-03
+
+> **This release exists to make two v2.1.0 claims true.** Both were wrong as
+> published, were verified wrong against the published artifacts, and are
+> retracted in the v2.1.0 entry below.
+
+### Fixed
+- **Block scalars no longer leak a literal `|` — for real this time.** v2.1.0
+  claimed this and shipped without it, because the fix landed in
+  `parser.py::parse_frontmatter` while the analyzer's load path
+  (`evaluator.py::load_anti_patterns`) calls `_parse_simple_frontmatter`. Same
+  file, different function. **12/251 patterns still leaked after 2.1.0.** Both
+  parsers now share one `_fold_block_scalars` pre-pass and one `_finish_scalar`.
+  Verified on the path production uses: `load_anti_patterns('.') -> 0/251`.
+  (issue #51, #89)
+- **The client layer is now in the bundle.** v2.1.0 claimed slots were declared
+  by augmenting `SlotMap` and components were React. The modules existed in the
+  source tree and were **not imported by `src/index.ts`**, so they never shipped;
+  `dist/index.mjs` contained neither, and `apply()` still registered `null` as
+  the component. The entry now imports the layer, and `register` gets a real
+  component per surface. (issue #90, #86)
+- **Slot keys match the platform's catalog.** `ui-sidebar` and
+  `ui-settings-plugins` were names I inferred from tutorial prose; neither
+  exists in the shipped catalog. Replaced with `sidebar.footer.action` (root
+  list), `conversation.view` (session), `sidebar.right.pane.tab` (session) —
+  read from the reference plugin's source. (issue #86)
+
+### Changed
+- Test runner is **vitest**, not `node --test`. Node's strip-only type removal
+  does not handle JSX (`ERR_UNKNOWN_FILE_EXTENSION .tsx`) — the same class of
+  limit as the constructor parameter properties in #2724. The platform's
+  components are `.tsx`, so a JSX-aware runner is required. 34/34 pass.
+
+### Not fixed (recorded so it is not forgotten)
+- #57 `contributor_view` documentation, #58 `issue`/`issue-batch` docs
+- #64 `test_crawler_friendly_count` still fails on live GitHub data
+- #65 `validate.py` still exits 2 with a confusing message when PyYAML is missing
+- #66 trigger coverage is now **measured** (`scripts/measure_pattern_coverage.py`)
+  but the 96%-do-not-fire problem itself is not solved; measuring is the
+  prerequisite, not the cure
+- #59 #61 #62 #63 #70 #71 #72 were addressed earlier and have receipts on the
+  issues; they are listed there rather than here.
+
+
 > **⚠️ CORRECTION (2026-10-03)** — two claims below the 2.1.0 entry were wrong as
 > published and are retracted inline:
 > 1. "YAML block scalars no longer leak a literal `|`" — the fix did not reach
