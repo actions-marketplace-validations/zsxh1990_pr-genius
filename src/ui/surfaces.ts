@@ -3,8 +3,8 @@
  *
  * 落点依据 dshfind 官方教程抽取的权威 slot 清单（见 docs/dsh-ui-slot-api.md）：
  *   - `conversation.view` — 会话视图的标签页（dsh-context 的 Context tab 就在这里）
- *   - `ui-sidebar`        — Workspace 与会话导航（Dashboard 落这里，脚部 Settings 之上）
- *   - `ui-settings-plugins` — 插件设置（Preferences 卡落这里）
+ *   - `sidebar.footer.action` — 侧边栏脚部（Dashboard 与 Preferences 各占一项）
+ *   - `sidebar.right.pane.tab` — 右栏面板
  *   - `ctx.command`       — 斜杠命令
  *
  * 注册形态：
@@ -26,11 +26,19 @@ export const SLOTS = {
   root: 'root',
 } as const
 
-/** 设置面（dsh 0.1.7+ 在侧边栏 Plugins → bundle 页 → Configuration）。 */
+/**
+ * 落点 = 真实 DSH slot 名（取自参考插件源码，不是文档）：
+ *   sidebar.footer.action    root-scope list —— 侧边栏脚部，Dashboard 与 Preferences 各占一项
+ *   conversation.view        session —— 会话视图标签页，与 Chat/Trajectory 并列
+ *   sidebar.right.pane.tab   session —— 右栏面板
+ * 早期版本用过两个不存在的键（照教程散文臆造），shipped catalog 里查无此项——已废弃（issue #86/#95）。
+ */
 export const SETTINGS_SURFACES = {
-  plugins: 'ui-settings-plugins',
-  pluginInventory: 'ui-settings-plugin-inventory',
-  sidebar: 'ui-sidebar',
+  plugins: 'sidebar.footer.action',
+  pluginInventory: 'sidebar.footer.action',
+  sidebar: 'sidebar.footer.action',
+  panel: 'sidebar.right.pane.tab',
+  tab: 'conversation.view',
 } as const
 
 /** 四个界面的稳定标识 —— 配置与测试都引用这些常量，不写字面量。 */
@@ -71,7 +79,7 @@ export const SURFACE_PLAN: SurfaceRegistration[] = [
   },
   {
     id: SURFACE_IDS.advisorPanel,
-    slot: SETTINGS_SURFACES.sidebar,
+    slot: SETTINGS_SURFACES.panel,
     kind: 'panel',
     mode: 'both',
   },

@@ -13,17 +13,14 @@
 import type { SlotEntryDef } from '@deepseek-ai/dsh-client-ui-slots'
 
 /** 侧边栏脚部的跨会话总览 —— 对应 dsh-context 的 Context Dashboard。 */
-/** 真实 slot：sidebar.footer.action（root-scope list，dsh-context 同款落点）*/
-export const DASHBOARD_SLOT = 'sidebar.footer.action'
-/** 会话视图标签页 —— dsh-context 的 Context tab 落在这里。 */
-/** 真实 slot：conversation.view（会话视图标签页，与 Chat/Trajectory 并列）*/
-export const ADVISOR_TAB_SLOT = 'conversation.view'
-/** 右栏面板（需 dsh 0.1.5-rc.1+）。 */
-/** 真实 slot：sidebar.right.pane.tab（右栏面板）*/
-export const ADVISOR_PANEL_SLOT = 'sidebar.right.pane.tab'
-/** 设置卡 —— Preferences/Configuration 落在 ui-settings 的插件配置面。 */
-/** 偏好入口与 Dashboard 同坐 sidebar.footer.action（root-scope list），各占一行 */
-export const PREFERENCES_SLOT = 'sidebar.footer.action'
+export { SETTINGS_SURFACES } from '../ui/surfaces.ts'
+import { SETTINGS_SURFACES } from '../ui/surfaces.ts'
+
+/** 落点全部来自 ui/surfaces.ts —— 一张表，不再各写各的（issue #95 的根因） */
+export const DASHBOARD_SLOT = SETTINGS_SURFACES.sidebar
+export const ADVISOR_TAB_SLOT = SETTINGS_SURFACES.tab
+export const ADVISOR_PANEL_SLOT = SETTINGS_SURFACES.panel
+export const PREFERENCES_SLOT = SETTINGS_SURFACES.plugins
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
