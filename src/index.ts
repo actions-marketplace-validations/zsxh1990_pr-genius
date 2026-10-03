@@ -11,7 +11,7 @@
  * 诚实边界：本机没有 DEEPSEEK_API_KEY，未跑真 DSH。本文件只保证 TypeScript
  * 编译、单元测试与静态契约自洽；渲染与运行时行为需 DSH 运行时验证，本机未执行。
  */
-import type { Context } from 'cordis'
+import type { Context } from '@deepseek-ai/cordis'
 import { planRegistrations, SURFACE_IDS } from './ui/surfaces.ts'
 import {
   Config,

@@ -8,7 +8,7 @@
  * TS 壳层的投影/透传，绝不重写 route_action 等 Python 路由逻辑 —— 注释里标明每个
  * 旋钮由哪一侧消费。
  */
-import Schema from 'schemastery'
+import Schema from '@deepseek-ai/schemastery'
 
 /** Python 侧维护者 5-action 词表 (prgenius/src/prgenius/maintainer_view.py::MaintainerAction)。 */
 /**
