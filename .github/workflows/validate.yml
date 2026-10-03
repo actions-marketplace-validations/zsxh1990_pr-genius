@@ -56,9 +56,14 @@ jobs:
         run: python3 validate.py --strict
 
       - name: Run validator (enforce evidence — hard gate)
-        # Hard fail: any case lacking verified_at / evidence_urls blocks the
-        # PR. This is the durable enforcement of "100% case-level evidence"
-        # promised in v0.7.x release notes.
+        # G1 policy: 新增记录强制带上证据，存量分期补。
+        # Hard fail ONLY for review-cases/*.json that are not in the declared
+        # debt baseline (validate_checks/evidence_debt_baseline.json). Those
+        # 302 records predate the v0.7.0 evidence contract and are tracked
+        # debt: they warn and print `declared debt (G1)`, but do not block.
+        # Any NEW record without verified_at + evidence_urls errors and blocks.
+        # Never fabricate evidence to lift coverage — the baseline must shrink
+        # as real evidence lands, never grow.
         run: python3 validate.py --enforce-evidence
 
       - name: Refresh evidence coverage badge

@@ -60,6 +60,23 @@ def _is_iso8601(value) -> bool:
         return False
 
 
+def _load_debt_baseline(root: Path) -> set:
+    """Load the declared-evidence-debt file list (G1).
+
+    返回已声明债务的 **文件名** 集合。基线文件不存在或读坏时返回空集 —— 那样
+    所有缺证据的记录都会按「新增」处理并报错，宁可过严也不放松执法。
+    """
+    path = Path(root) / "validate_checks" / "evidence_debt_baseline.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    files = data.get("files") if isinstance(data, dict) else None
+    if not isinstance(files, list):
+        return set()
+    return {str(x) for x in files}
+
+
 def _urls_ok(value) -> bool:
     """True iff value is a non-empty list of http(s) URL strings."""
     if not isinstance(value, list) or not value:
@@ -90,8 +107,11 @@ def check_review_case_evidence(
         return {"total": 0, "complete": 0, "coverage_pct": None}
 
     files = sorted(cases_dir.glob("*.json"))
+    debt = _load_debt_baseline(root)
     target = errors if enforce_evidence else warnings
     complete = 0
+    debt_hits = 0
+    new_missing = 0
 
     for f in files:
         rel = f.relative_to(root)
@@ -118,8 +138,18 @@ def check_review_case_evidence(
             problems.append(f"invalid `evidence_urls` (need http(s) URL list): {eu!r}")
 
         if problems:
+            # G1: 存量债务只警告，新增记录必须带证据。
+            # 判据是「文件在不在 evidence_debt_baseline.json 里」，不是文件日期 ——
+            # 日期会随 clone/checkout 变，基线是提交进仓库的确定性清单。
+            is_debt = f.name in debt
+            sink = warnings if is_debt else target
+            tag = "[evidence-gate/declared-debt]" if is_debt else "[evidence-gate]"
+            if is_debt:
+                debt_hits += 1
+            elif enforce_evidence:
+                new_missing += 1
             for p in problems:
-                target.append(f"{rel}: [evidence-gate] {p}")
+                sink.append(f"{rel}: {tag} {p}")
         else:
             complete += 1
 
@@ -129,4 +159,14 @@ def check_review_case_evidence(
         f"   evidence coverage: {complete}/{total} ({pct:.1f}%) "
         "records have verified_at + evidence_urls"
     )
+    if debt:
+        print(
+            f"   declared debt (G1): {debt_hits}/{len(debt)} baseline entries still missing "
+            "evidence — warnings only; new records missing evidence still error"
+        )
+    if new_missing and enforce_evidence:
+        print(
+            f"   NEW records missing evidence: {new_missing} — these are not in the debt "
+            "baseline and must carry verified_at + evidence_urls (G1)"
+        )
     return {"total": total, "complete": complete, "coverage_pct": pct}
