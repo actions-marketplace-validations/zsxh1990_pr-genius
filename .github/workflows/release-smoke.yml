@@ -1,0 +1,85 @@
+name: release-smoke
+
+# 发版运行时 smoke gate（issue #96）。
+#
+# 为什么是独立工作流且不可选：v2.0.0 / v2.1.0 / v2.1.1 三次发版的 CHANGELOG 都
+# 声称「四个界面挂在真实 slot 上」，三次都是假的。共同根因是发版前只跑
+# tsc + 单测 + grep dist —— 那些证明「文件里有」，证明不了「apply() 会这么调」。
+#
+# 这个 gate 走用户实际执行的路径：npm pack → 解压 tarball → import 产物 →
+# 调 apply() → 把录到的 slot key 比 DSH SDK 自己的 CLIENT_SLOT_API。
+#
+# slot 列表不来自本仓库任何文件（那是循环验证）。取不到权威 catalog 时
+# gate 以 exit 2 失败并明说「无法验证」，绝不用内置列表凑。
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'dist/**'
+      - 'scripts/release-smoke/**'
+      - 'package.json'
+      - 'tsdown.config.ts'
+      - '.github/workflows/release-smoke.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'dist/**'
+      - 'scripts/release-smoke/**'
+      - 'package.json'
+      - 'tsdown.config.ts'
+      - '.github/workflows/release-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  runtime-smoke:
+    name: packed artifact × authoritative slot catalog
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # pnpm must be installed BEFORE setup-node's `cache: pnpm` runs — setup-node
+      # shells out to `pnpm` to resolve the lockfile, and exits with
+      # "Unable to locate executable file: pnpm" when it is not on PATH yet.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # 非可选的发版关卡。退出码：
+      #   0 = 声明站得住
+      #   1 = 站不住（slot 名不在 SDK catalog / 组件是 null / 缺 required 注册项）
+      #   2 = 无法验证（权威 catalog 不可得）——同样不放行
+      - name: Release runtime smoke gate
+        run: node scripts/release-smoke/runtime-smoke-gate.mjs --json reports/release-smoke.json
+
+      - name: Upload machine-readable report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-smoke-report
+          path: reports/release-smoke.json
+          if-no-files-found: warn

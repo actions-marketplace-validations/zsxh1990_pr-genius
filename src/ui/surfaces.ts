@@ -1,47 +1,19 @@
 /**
  * 四个界面 + 维护者模式的注册层。
  *
- * 落点依据 dshfind 官方教程抽取的权威 slot 清单（见 docs/dsh-ui-slot-api.md）：
- *   - `conversation.view` — 会话视图的标签页（dsh-context 的 Context tab 就在这里）
- *   - `sidebar.footer.action` — 侧边栏脚部（Dashboard 与 Preferences 各占一项）
- *   - `sidebar.right.pane.tab` — 右栏面板
- *   - `ctx.command`       — 斜杠命令
- *
- * 注册形态：
- *   ctx.slots.inject(slotName, () => ctx.slots.register({ name, ...kind }, Component))
- * 「声明 = 渲染授权 = 运行时规范」，卸载时组件 / slot 条目 / store 一并递归撤销。
  *
  * 诚实边界：本机没有 DEEPSEEK_API_KEY，未跑真 DSH。这里只保证注册形状与契约一致、
  * TypeScript 编译通过；渲染与运行时行为需 DSH 运行时验证，本机未执行。
  */
-/** 权威 slot 名（core/12-web-ui 的 slot 表）。 */
-export const SLOTS = {
-  /** 聊天流里的一行节点。 */
-  chatNode: 'conversation.chat.node',
-  /** 输入区上方的卡片栈。 */
-  inputDock: 'conversation.input.dock',
-  /** 会话视图的标签页 —— 顾问 Tab 的落点。 */
-  view: 'conversation.view',
-  /** 应用根。 */
-  root: 'root',
-} as const
+import {
+  isConfirmedSlotKey,
+  REGISTERED_SLOTS,
+  registerOptionsFor,
+  type SlotSeat,
+} from './slot-catalog.ts'
 
-/**
- * 落点 = 真实 DSH slot 名（取自参考插件源码，不是文档）：
- *   sidebar.footer.action    root-scope list —— 侧边栏脚部，Dashboard 与 Preferences 各占一项
- *   conversation.view        session —— 会话视图标签页，与 Chat/Trajectory 并列
- *   sidebar.right.pane.tab   session —— 右栏面板
- * 早期版本用过两个不存在的键（照教程散文臆造），shipped catalog 里查无此项——已废弃（issue #86/#95）。
- */
-export const SETTINGS_SURFACES = {
-  plugins: 'sidebar.footer.action',
-  pluginInventory: 'sidebar.footer.action',
-  sidebar: 'sidebar.footer.action',
-  panel: 'sidebar.right.pane.tab',
-  tab: 'conversation.view',
-} as const
 
-/** 四个界面的稳定标识 —— 配置与测试都引用这些常量，不写字面量。 */
+/** 四个界面 + 命令面的稳定标识 —— 配置与测试都引用这些常量，不写字面量。 */
 export const SURFACE_IDS = {
   dashboard: 'pr-genius.dashboard',
   advisorTab: 'pr-genius.advisor-tab',
@@ -53,45 +25,66 @@ export const SURFACE_IDS = {
 /** 维护者模式：切换只换投影，不换数据层 —— 两侧共用 kb 与 mcp 桥。 */
 export type WorkMode = 'contributor' | 'maintainer'
 
+export type SurfaceKind = 'dashboard' | 'tab' | 'panel' | 'command' | 'settings'
+
 export interface SurfaceRegistration {
   id: string
-  slot: string
-  kind: 'dashboard' | 'tab' | 'panel' | 'command' | 'settings'
+  /**
+   * 上游 catalog 里的座位。命令面走 `ctx.command`（Cordis 的命令 API，
+   * 不是 slot），所以它的 seat 是 null —— 不硬造一个 slot 名。
+   */
+  seat: SlotSeat | null
+  kind: SurfaceKind
   mode: WorkMode | 'both'
 }
 
 /**
  * 要注册的界面清单。维护者模式不是第二套界面，而是同一组界面的另一投影，
  * 所以它标记为 `mode: 'both'` 并由一个开关决定渲染哪一侧的数据。
+ *
+ * 落点（全部经上游 slot-catalog 核对存在，见 REGISTERED_SLOTS 的注释）：
+ *   侧边栏脚部  dashboard    → sidebar.footer.action   list/root
+ *   会话标签    advisorTab   → conversation.view       list/session
+ *   右栏面板    advisorPanel → sidebar.right.pane.tab  keyed/session
+ *   设置/偏好   preferences  → settings.section        list/root
+ *   命令面      command      → ctx.command（非 slot，无 slot 落点）
  */
 export const SURFACE_PLAN: SurfaceRegistration[] = [
   {
     id: SURFACE_IDS.dashboard,
-    slot: SETTINGS_SURFACES.sidebar,
+    seat: REGISTERED_SLOTS.sidebarFooterAction,
     kind: 'dashboard',
     mode: 'both',
   },
   {
     id: SURFACE_IDS.advisorTab,
-    slot: SLOTS.view,
+    seat: REGISTERED_SLOTS.conversationView,
     kind: 'tab',
     mode: 'both',
   },
   {
     id: SURFACE_IDS.advisorPanel,
-    slot: SETTINGS_SURFACES.panel,
+    // 右栏落点有版本分歧：pinned SDK 里是 `details`（42 keys），upstream master
+    // 里是 `sidebar.right.pane.tab`（92 keys）。不二选一 —— 交给 apply() 逐个试，
+    // 宿主认哪个用哪个，都不认就不注册（宁缺勿假）。
+    seat: {
+      key: 'details',
+      kind: 'single',
+      scope: 'session',
+      candidates: ['details', 'sidebar.right.pane.tab'],
+    } as unknown as SlotSeat,
     kind: 'panel',
     mode: 'both',
   },
   {
     id: SURFACE_IDS.command,
-    slot: 'ctx.command',
+    seat: null,
     kind: 'command',
     mode: 'both',
   },
   {
     id: SURFACE_IDS.preferences,
-    slot: SETTINGS_SURFACES.plugins,
+    seat: REGISTERED_SLOTS.settingsSection,
     kind: 'settings',
     mode: 'both',
   },
@@ -109,15 +102,39 @@ export function planRegistrations(): SurfaceRegistration[] {
 }
 
 /**
+ * 一处界面的全部 register 调用：正文席 + 配对标题席（若上游成对，如
+ * sidebar.right.pane.tab / .title）。每个元素是 `{ slotKey, options }`，
+ * options 形状由上游基数决定，绝不臆造。
+ *
+ * 座位不在上游 catalog 里 → 返回空数组（保守降级：不注册、由调用方记 warn）。
+ */
+export function registrationCalls(
+  surface: SurfaceRegistration,
+): Array<{ slotKey: string; options: Record<string, string> }> {
+  const { seat, id } = surface
+  if (!seat) return []
+  if (!isConfirmedSlotKey(seat.key)) return []
+  const calls: Array<{ slotKey: string; options: Record<string, string> }> = [
+    { slotKey: seat.key, options: registerOptionsFor(seat, id) },
+  ]
+  if (seat.titleKey && isConfirmedSlotKey(seat.titleKey)) {
+    calls.push({
+      slotKey: seat.titleKey,
+      options: { name: seat.titleKey, [seat.cellOption]: id },
+    })
+  }
+  return calls
+}
+
+/**
  * 断言某个界面挂在正确的 slot 上 —— 无需运行时即可验证「侧边栏安装配置架构」。
  * 契约或抄写出错时这里会红，而不是等到用户打开面板才发现空白。
  */
 export function assertSlotPlacement(id: string, expectedSlot: string): void {
   const hit = SURFACE_PLAN.find((r) => r.id === id)
   if (!hit) throw new Error(`unknown surface id: ${id}`)
-  if (hit.slot !== expectedSlot) {
-    throw new Error(
-      `surface ${id} is planned for slot ${hit.slot}, expected ${expectedSlot}`,
-    )
+  const actual = hit.seat?.key ?? '(no slot: ctx.command)'
+  if (actual !== expectedSlot) {
+    throw new Error(`surface ${id} is planned for slot ${actual}, expected ${expectedSlot}`)
   }
 }

@@ -6,6 +6,183 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.1.4] - 2026-10-03
+
+> **Cut for one reason: so the claim "a runtime gate signed off on this" becomes true in CI.**
+>
+> 2.1.3 carried that line, and it was only half accurate. The gate passed locally
+> and in `prepublishOnly`, but the CI leg never ran — `actions/setup-node` with
+> `cache: pnpm` was ordered before `pnpm/action-setup`, so it died with
+> "Unable to locate executable file: pnpm" before the gate started. That order is
+> fixed on `main` (`ac8ab6a`), and this tag is what exercises it.
+
+### Fixed
+- `release-smoke.yml` installs pnpm before `setup-node`'s pnpm cache. `setup-node`
+  shells out to `pnpm` to resolve the lockfile; when it is not on PATH yet the
+  workflow fails at setup and the gate never runs. The gate was never the problem
+  — the workflow never reached it.
+
+### No behavioural change
+
+The plugin code is identical to 2.1.3. This release exists so that the next
+"gate signed off" claim is checkable in the Actions tab rather than only on my
+machine.
+
+### Still true
+
+The gate proves `apply()` emits calls that land on SDK-declared seats with a
+non-null component. It does **not** prove anything renders — no `DEEPSEEK_API_KEY`
+here, and pr-genius has never mounted in a real DSH web host.
+
+
+## [2.1.3] - 2026-10-03
+
+> First release that a **runtime gate** signed off on. Everything before this was
+> verified by compiling or by grepping, and three of those releases shipped
+> claims that did not hold.
+
+### Added
+- **Release runtime smoke gate** (`npm run smoke:release`, wired into
+  `prepublishOnly` and `.github/workflows/release-smoke.yml`). Packs a real
+  tarball, unpacks it, imports the artifact entry, calls `apply()`, and compares
+  the calls it emits against DSH SDK's own `CLIENT_SLOT_API`. Exit 0 = the
+  release claims hold, 1 = they do not, 2 = unverifiable. (issue #96)
+- **Runtime slot probing.** The panel seat carries a candidate list and `apply()`
+  tries each key, keeping whichever the host accepts. If none is accepted the
+  surface is not registered — 宁缺勿假. No static slot name survives in the
+  registration path. (issue #97)
+- **Surfaces render real data.** Knowledge-base counts come from the corpus, the
+  advisor surfaces show real `coach` output, preferences show the 12 Config
+  fields' current values. Data reaches the UI through the MCP bridge; nothing is
+  reimplemented in TypeScript. (issue #98)
+
+### Fixed
+- `register` options for list slots carry `id`, not `kind` — the gate caught both.
+
+### What the gate found and what it means
+
+Two catalogs disagree, and the disagreement is not academic:
+
+| source | keys | `details` | `sidebar.right.pane.tab` |
+|---|---|---|---|
+| pinned npm package (what a user installs) | 42 | present | absent |
+| upstream `deepseek-harness@master` | 92 | absent | present |
+
+A user installs the pinned package. Rather than pick a side, the plugin probes.
+The gate's output after the change:
+
+```
+  ✓ sidebar.footer.action   list     root     required=[id]
+  ✓ conversation.view       list     session  required=[id]
+  ✓ details                 single   session  required=[]   ← probe chose the pinned key
+  ✓ settings.section        list     root     required=[id]
+  VERDICT: PASS_WITH_WARNINGS   exit 0   FAIL=0
+```
+
+The 2 warnings are the 50-key catalog drift (reported, never merged into one
+list — merging would validate against a catalogue no host has) and the
+degradation path the gate also exercises.
+
+### Honest boundary
+
+The gate proves `apply()` emits calls that land on SDK-declared seats with a
+non-null component. **It does not prove anything renders.** There is no
+`DEEPSEEK_API_KEY` on this machine and pr-genius has never loaded in a real DSH
+web host. Host-mounting behaviour still needs a real runtime.
+
+## [Unreleased]
+
+### Fixed
+- **The four surfaces render real data instead of `null` / placeholder copy.**
+  (issue #98) Dashboard shows knowledge-base scale and install health from
+  `prgenius_doctor` (numbers come from the analyzer, never typed into the UI),
+  in-flight PR rows from `status_prs` when an author is configured, Advisor runs
+  `coach_pr` and projects tier / signals / checklist / merge probability /
+  coverage, Preferences is a live readout of `service.describe()`. Every value is
+  fetched through `service.callTool` over the real MCP transport and verified in
+  `test/surface-data.test.ts` against a direct Python call plus a
+  `renderToStaticMarkup` assertion.
+- **Slot contracts now match the authoritative slot-catalog, and registration
+  degrades conservatively.** Declarations claimed `conversation.view` and
+  `sidebar.right.pane.tab` were `single`; the catalog says `list` and `keyed`.
+  Registration now uses the catalog's `register({ name, id | key })` shape,
+  Preferences lands on `settings.plugins.tab`, and any slot not verified against
+  the catalog snapshot is skipped with a warning instead of registered on a
+  guessed key. `docs/slot-catalog-evidence.json` freezes the fetched catalog
+  (92 keys from `deepseek-ai/deepseek-harness`, 2026-10-03). Note: there is no
+  slot key named `details` — that is an AppFrame seat name inside `root`'s docs.
+
+### Known limits
+- No DSH host run yet (no `DEEPSEEK_API_KEY` here): component mount and the
+  keyed `sidebar.right.pane.tab` dispatch are unverified at runtime.
+- Preferences is read-only: the service has no config-write API, so no fake
+  save button.
+
+## [Unreleased]
+
+### Added
+- **Release runtime smoke gate** (`scripts/release-smoke/`, `npm run smoke:release`,
+  `.github/workflows/release-smoke.yml`, wired into `prepublishOnly`). Packs a real
+  tarball, unpacks it, imports the artifact entry, calls `apply()`, and compares the
+  slot keys it actually registers against DSH SDK's own `CLIENT_SLOT_API`. Human- and
+  machine-readable output; exit 0 = the release claims hold, 1 = they don't,
+  2 = unverifiable. (issue #96)
+- The gate's slot list is **not** written anywhere in this repo. It is read from
+  `@deepseek-ai/dsh-cordis-client-runner`'s compiled `CLIENT_SLOT_API` (the build of
+  `packages/extensions/cordis-client-runner/src/client/slot-catalog.ts`), version-pinned
+  by `package.json`, with `gh api` against `deepseek-ai/deepseek-harness@master` as a
+  cross-check. If neither resolves the gate reports "authoritative catalog unavailable"
+  and exits 2 rather than substituting a built-in list. A self-check scans the gate's own
+  source for planted slot names and fails on any hit — a hardcoded list is circular
+  validation: it can confirm errors but cannot falsify them.
+
+### Reported by the gate on v2.1.2 as it stands (not fixed here)
+
+The gate is **red** on the current registration, which is the point. Against the pinned
+SDK catalog (`@deepseek-ai/dsh-cordis-client-runner@0.0.1-rc.3`, 42 keys — what a user
+actually installs):
+
+| Finding | What `apply()` does | What the SDK catalog says |
+|---|---|---|
+| `C1` | `inject('sidebar.right.pane.tab', …)` | that key does not exist in the pinned catalog |
+| `C4` | `register({ name, kind }, …)` on `sidebar.footer.action` / `conversation.view` | list slots require `id`; `kind` is not a register option |
+
+Also recorded: the pinned catalog and upstream `master` have drifted (42 vs 92 keys).
+Upstream has `sidebar.right.pane.tab` (`keyed`/`session`) but **not** `details`; the
+pinned version has `details` (`single`/`session`, occupied by `client-ui-conversation`
+`DetailsPanel`, `packages/client/ui-layout/src/client/index.ts:72`) but **not**
+`sidebar.right.pane.tab`. A release claim written against upstream will not land on the
+host a user actually runs. The gate validates against the pinned version and reports the
+drift as a warning.
+
+Nothing in the plugin's registration is changed by this entry — that is separate work.
+The gate's job is to stop a claim like these from shipping unchallenged again.
+
+### Fixed
+- **Slot keys are checked against the upstream DSH slot catalog before any
+  registration.** `src/ui/slot-catalog.ts` is the single source of truth: the
+  92 keys parsed out of
+  `deepseek-ai/deepseek-harness:packages/extensions/cordis-client-runner/src/client/slot-catalog.ts`
+  (blob `7c8f7af1`, commit `2db0c83e`, 2026-10-02) plus the seats the four
+  surfaces use. A seat missing from that catalog is **not registered** — the
+  plugin logs a warning instead of inventing a key. (issue #97)
+- `conversation.view` is declared `list/session` and `sidebar.right.pane.tab`
+  `keyed/session`, matching the catalog. v2.1.2 declared both `single`, which
+  is wrong even where the key existed: a keyed seat requires the `key` register
+  option, and the old call passed `kind` — not a register option at all —
+  while `name` carried the surface id instead of the slot key.
+- Preferences moved to `settings.section` (list/root, "one settings page per
+  list entry"), the settings landing the catalog actually offers.
+
+### Changed
+- `src/ui/surfaces.ts` and `src/client/slots.ts` no longer each define slot
+  names: both derive from `REGISTERED_SLOTS`, and a compile-time assertion
+  keeps the `declare module` literals in sync.
+- Verification is no longer self-referential. `scripts/verify-slot-keys.mjs`
+  fetches the upstream catalog and `test/slot-catalog.test.ts` parses those
+  bytes into the allowed set before running `apply()`; the allowed set never
+  comes from the plugin's own constants.
+
 ## [2.1.2] - 2026-10-03
 
 > **Cut because 2.1.1 repeated the exact mistake 2.1.0 made.** The slot-key fix
