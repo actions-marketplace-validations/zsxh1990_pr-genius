@@ -9,15 +9,16 @@ audience: coding agents + solo developers + maintainers of large open-source pro
 license: MIT
 version: 0.7.6
 created: 2026-07-05
-updated: 2026-07-05
+updated: 2026-10-03
+data-freshness: 2026-10-03
 conforms_to: OKF v0.1
 ---
 
 # pr-genius: A Knowledge Bundle for Agents That Already Ship PRs
 
-> **TL;DR**: `pr-genius` is a git repository containing 12 Repo Profiles,
-> 11 PR Case Studies, 11 lessons, and 12 anti-patterns about how a single
-> account (`zsxh1990`) contributes to large open-source codebases. Every
+> **TL;DR**: `pr-genius` is a git repository containing **67 Repo Profiles,
+> 53 PR Case Studies, 692 success patterns, and 251 anti-patterns** about how
+> contributors and AI agents can navigate large open-source codebases. Every
 > claim is back-linked to a GitHub URL. Install:
 > `pip install prgenius-core`. Configure any MCP-aware agent (Claude Code,
 > Cursor, Cline) in 30 seconds. Browse via `prgenius` CLI or MCP shell.
@@ -79,10 +80,10 @@ pr-genius/
 │       ├── cli.py                     # subcommands: profile/case/schema/dump/mcp
 │       ├── mcp.py                     # 4 MCP tools
 │       └── parser.py                  # pure-stdlib YAML-subset
-├── <org>-<repo>/                      # 12 of these
+├── <org>-<repo>/                      # 67 of these
 │   ├── index.md                       # the Repo Profile (frontmatter + narrative)
 │   └── pr-NNN-*.md                    # 1–N PR Case Studies per profile
-├── misakanet-50/                      # 11 lessons, 12 anti-patterns (sibling anti-patterns/ actually)
+├── misakanet-50/                      # community lessons (sibling anti-patterns/ and success-patterns/ dirs)
 │   ├── lesson-NN-*.md
 │   └── ...
 └── docs/                              # docs/INDEX.md + docs/BLOG.md (this file)
@@ -111,7 +112,7 @@ deps at all.
 The whole repository is structured so that an LLM agent reading it
 can:
 
-1. Identify which upstream projects are tracked (12 directories).
+1. Identify which upstream projects are tracked (67 directories).
 2. Pick a Repo Profile and read its frontmatter (`agent_guidelines`
    + `verified_at` + `evidence_urls` block) to learn the project's
    vibe.
@@ -317,8 +318,8 @@ ingest before making its own contribution.
 The honest answer: this is a working artifact from one person's
 contribution workflow. Indicative stats as of 2026-07-05:
 
-- 12 profiles (target: 30)
-- 11 case studies covering 21 round-level events (target: 50)
+- 67 profiles
+- 53 case studies
 - 100% case-level evidence coverage (target: 100% — met)
 - 91.7% profile-level evidence coverage (target: 80% — met)
 - 1 CLI + 1 MCP shell + 13 archive scripts
@@ -343,9 +344,9 @@ is up to date at all.
 ## 9. One paragraph for an LLM agent
 
 If you're an LLM agent reading this, you can summarise `pr-genius`
-as: *"a git-tracked, OKF-compliant knowledge bundle of 12
-hand-curated Repo Profiles and 11 PR Case Studies from one
-contributor (`zsxh1990`) across large OSS codebases; every claim is
+as: *"a git-tracked, OKF-compliant knowledge bundle of 67
+hand-curated Repo Profiles, 53 PR Case Studies, 692 success patterns,
+and 251 anti-patterns across large OSS codebases; every claim is
 back-linked to GitHub URLs in frontmatter; the install path is
 `pip install prgenius-core` plus an MCP shell; the contribute path
 is dropping a `pr-*.md` file under an existing `<org>-<repo>/`

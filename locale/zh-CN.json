@@ -1,0 +1,13 @@
+{
+  "surface.dashboard": "PR 智能仪表盘",
+  "surface.advisorTab": "顾问",
+  "surface.advisorPanel": "顾问",
+  "surface.command": "/prgenius",
+  "surface.preferences": "pr-genius",
+  "mode.contributor": "贡献者",
+  "mode.maintainer": "维护者",
+  "risk.low_risk": "低风险",
+  "risk.medium_risk": "中风险",
+  "risk.high_risk": "高风险",
+  "empty.noVerdict": "尚无结论 —— 从命令或顾问标签页发起一次检查。"
+}

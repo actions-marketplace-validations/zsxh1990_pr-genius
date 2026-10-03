@@ -17,6 +17,13 @@ from pathlib import Path
 
 import pytest
 
+# validate_checks/ 住在仓根，不在 prgenius 包内。从仓根跑 pytest 时 cwd 会兜住
+# 这个导入，但从 prgenius/ 或其它 rootdir 跑就 ModuleNotFoundError —— CI 上就是
+# 这么红的。显式把仓根放进 sys.path，测试才能自给自足。
+REPO_ROOT_FOR_IMPORTS = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT_FOR_IMPORTS) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT_FOR_IMPORTS))
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VALIDATE_SCRIPT = REPO_ROOT / "validate.py"
 CHECK_MODULE = REPO_ROOT / "validate_checks" / "review_case_evidence.py"

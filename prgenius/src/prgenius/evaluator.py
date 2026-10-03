@@ -448,8 +448,60 @@ def check_anti_patterns(title: str, description: str, repo: str, repo_root, body
     return matches
 
 
+def anti_pattern_coverage(repo: str, repo_root) -> dict:
+    """统计对本 PR 而言, 反模式库里有多少是"可参与匹配"的 (issue #66)。
+
+    不做匹配, 只做盘点: 让调用方能看到 251 条里有多少条连触发词都没有、
+    多少条被 repo 过滤挡掉。判据与 check_anti_patterns 的准入一致
+    (JSON 模式不参与匹配; repo 字段不匹配则跳过)。
+    """
+    repo_root = Path(repo_root) if not isinstance(repo_root, Path) else repo_root
+    patterns = load_anti_patterns(repo_root)
+    repo_lower = repo.strip("/").lower()
+    loaded = len(patterns)
+    loaded_md = 0
+    with_keywords = 0
+    scope_generic = 0
+    eligible = 0
+    for p in patterns.values():
+        if not p.get("_is_json_pattern"):
+            loaded_md += 1
+        kws = p.get("trigger_keywords") or []
+        if isinstance(kws, list) and any(isinstance(k, str) and k.strip() for k in kws):
+            with_keywords += 1
+        pattern_repo = (p.get("repo") or "").strip("/").lower()
+        if not pattern_repo:
+            scope_generic += 1
+        if p.get("_is_json_pattern"):
+            continue
+        if pattern_repo and pattern_repo != repo_lower:
+            continue
+        eligible += 1
+    return {
+        "anti_patterns_loaded": loaded,
+        "anti_patterns_loaded_md": loaded_md,
+        "anti_patterns_loaded_json": loaded - loaded_md,
+        "anti_patterns_with_trigger_keywords": with_keywords,
+        "anti_patterns_without_trigger_keywords": loaded - with_keywords,
+        "anti_patterns_scope_generic": scope_generic,
+        "anti_patterns_scope_repo_specific": loaded - scope_generic,
+        # matcher 对本 PR 真正会遍历的条数 (JSON 模式与他仓 repo-scoped 模式已排除)
+        "anti_patterns_eligible": eligible,
+    }
+
+
 def load_success_patterns(repo_root) -> Dict[str, dict]:
-    """保留加载但不再用于评分 — 仅作参考"""
+    """加载 success-patterns 语料 — 检索/参考专用, 不参与评分 (issue #69)。
+
+    刻意的契约, 不是遗漏:
+      * 这些模式只被 `search_patterns()` 等检索面和人直接阅读使用;
+      * `analyze_pr` / `coach_pr` 的 tier、signals、merge_probability 一概
+        不参考它们 — 偷偷接进评分会改变评分语义, 让历史结果不可比 (issue #69);
+      * 数据现状 (scripts/measure_pattern_coverage.py 可复测): 0/692 带
+        `trigger_keywords`, tags 是语料桶标签 (generic / success / large-repo…),
+        没有可靠触发面可接线。要参与评分必须先补 trigger 数据, 并显式声明
+        评分语义变更。
+    """
     # v1.4.0 修复: 接受 str | Path
     repo_root = Path(repo_root) if not isinstance(repo_root, Path) else repo_root
     cache_key = str(repo_root)
@@ -844,23 +896,45 @@ def _classify_tier_and_pr_size(
     body_lower = body.lower() if body else ""
     combined = f"{title_lower} {body_lower}"
 
-    if total_lines > 0:
-        # 基于实际 diff_stat 的行数分级
-        if total_lines > 500 or files_changed > 20:
-            pr_size = "XL"
-            pr_size_label = f"超大 ({total_lines} 行, {files_changed} 文件)"
-        elif total_lines > 300 or files_changed > 10:
-            pr_size = "L"
-            pr_size_label = f"大 ({total_lines} 行, {files_changed} 文件)"
-        elif total_lines > 150 or files_changed > 5:
-            pr_size = "M"
-            pr_size_label = f"中等 ({total_lines} 行, {files_changed} 文件)"
-        elif total_lines > 50:
-            pr_size = "S"
-            pr_size_label = f"小 ({total_lines} 行, {files_changed} 文件)"
-        else:
-            pr_size = "XS"
-            pr_size_label = f"极小 ({total_lines} 行, {files_changed} 文件)"
+    def _size_rank(s: str) -> int:
+        return {"XS": 0, "S": 1, "M": 2, "L": 3, "XL": 4}.get(s, 0)
+
+    if total_lines > 0 or files_changed > 0:
+        # issue #59: 二维分级 (行数 × 文件数), 取两者中更大的档位。
+        # 阈值: XS ≤50 行 / ≤2 文件; S 51-150 / 3-5; M 151-300 / 6-10;
+        #       L 301-500 / 11-20; XL >500 行或 >20 文件。
+        def _bucket_by_lines(n: int) -> str:
+            if n > 500:
+                return "XL"
+            if n > 300:
+                return "L"
+            if n > 150:
+                return "M"
+            if n > 50:
+                return "S"
+            return "XS"
+
+        def _bucket_by_files(n: int) -> str:
+            if n > 20:
+                return "XL"
+            if n > 10:
+                return "L"
+            if n > 5:
+                return "M"
+            if n > 2:
+                return "S"
+            return "XS"
+
+        lines_bucket = _bucket_by_lines(total_lines)
+        files_bucket = _bucket_by_files(files_changed)
+        pr_size = max((lines_bucket, files_bucket), key=_size_rank)
+        _SIZE_CN = {"XS": "极小", "S": "小", "M": "中等", "L": "大", "XL": "超大"}
+        detail = ""
+        if lines_bucket != files_bucket:
+            detail = f"; 行数档 {lines_bucket}/文件档 {files_bucket}"
+        pr_size_label = (
+            f"{_SIZE_CN[pr_size]} ({total_lines} 行, {files_changed} 文件{detail})"
+        )
     else:
         # 回退: 基于标题关键词启发式 (无 diff_stat 时)
         if any(kw in combined for kw in ["major", "refactor", "rewrite", "migration", "breaking"]):
@@ -921,6 +995,32 @@ def _classify_tier_and_pr_size(
     return tier, pr_size, pr_size_label, impact_score, risk_level, risk_description
 
 
+def coerce_merge_rate(value) -> float:
+    """把候选合并率收敛成 (0, 1] 的 float, 否则返回 0.0 (issue #68)。
+
+    profiles 里 `external_merge_rate_30` 经常是 URL 字符串而不是数字,
+    直接参与比较/乘法会出错或静默降级 — 这里只认真正的数值。
+    """
+    if isinstance(value, bool):
+        return 0.0
+    if isinstance(value, (int, float)):
+        rate = float(value)
+    elif isinstance(value, str):
+        try:
+            rate = float(value.strip())
+        except ValueError:
+            return 0.0
+    else:
+        return 0.0
+    return rate if 0.0 < rate <= 1.0 else 0.0
+
+
+# issue #68: 合并率键位不统一 — profiles 里 external_merge_rate 是数字,
+# external_merge_rate_30 常是 URL 字符串, repo_context 里落库为 merge_rate。
+# 按顺序取第一个可用数值, 三个键都点名写清楚。
+_MERGE_RATE_KEYS = ("external_merge_rate_30", "external_merge_rate", "merge_rate")
+
+
 def _estimate_merge_probability(
     *,
     signals_neg: List[dict],
@@ -928,30 +1028,42 @@ def _estimate_merge_probability(
     signals_neu: List[dict],
     tier: str,
     repo_context: dict,
-) -> Tuple[float, List[dict], dict]:
+) -> Tuple[float, List[dict], dict, dict]:
     """计算合并概率估算和优化路径。
 
     覆盖 Section 9: 基于仓库合并率和信号严重程度估算合并概率，
     生成优化路径建议和对比信息。
 
+    issue #68: 降级必须说出来 — 拿不到实测合并率而落到 tier 估算时,
+    返回值里标注 degraded, 而不是静默给出一个像实测的数字。
+
     Returns:
-        (merge_probability, optimization_path, comparison)
+        (merge_probability, optimization_path, comparison, probability_meta)
+        probability_meta: {basis, degraded, degraded_reason, rate_source}
     """
     # ---- 9. 合并概率估算 + 优化路径 ----
-    merge_rate = repo_context.get("external_merge_rate_30", 0.0)
+    merge_rate = 0.0
+    rate_source = ""
+    for key in _MERGE_RATE_KEYS:
+        merge_rate = coerce_merge_rate(repo_context.get(key, 0.0))
+        if merge_rate > 0:
+            rate_source = key
+            break
 
     # 直接用仓库合并率作为基础概率
     # 这是最诚实的起点：你在这个仓库提 PR，平均能 merge 多少
     if merge_rate > 0:
         base_probability = merge_rate
+        basis = "measured"
     else:
-        # 无数据时用 tier 估算
+        # 无数据时用 tier 估算 (必须标注为估算, 见 probability_meta)
         if tier == "low_risk":
             base_probability = 0.60
         elif tier == "medium_risk":
             base_probability = 0.35
         else:
             base_probability = 0.15
+        basis = "tier_estimate" if tier in ("low_risk", "medium_risk", "high_risk") else "unknown"
 
     # 只对真正区分性的信号做调整（避免和 tier 重复计算）
     # 这些信号能改变合并概率，不只是风险标记
@@ -1001,7 +1113,25 @@ def _estimate_merge_probability(
                 "priority": "P0",
             })
 
-    return merge_probability, optimization_path, comparison
+    # issue #68: 降级透明化 — degraded=true + 原因, 让调用方知道
+    # 这个数字是 tier 估算而不是仓库实测合并率
+    if basis == "measured":
+        degraded_reason = ""
+    else:
+        degraded_reason = (
+            "仓库合并率不可用 (repo_context 里 "
+            + "/".join(_MERGE_RATE_KEYS)
+            + " 均缺失或非数值, URL 字符串不算合并率); "
+            f"退回 {tier} 档默认值 {base_probability:.2f}, 非实测"
+        )
+    probability_meta = {
+        "basis": basis,
+        "degraded": basis != "measured",
+        "degraded_reason": degraded_reason,
+        "rate_source": rate_source,
+    }
+
+    return merge_probability, optimization_path, comparison, probability_meta
 
 
 def _assemble_output(
@@ -1023,6 +1153,8 @@ def _assemble_output(
     impact_score: int,
     risk_level: str,
     risk_description: str,
+    coverage: Optional[dict] = None,
+    probability_meta: Optional[dict] = None,
 ) -> dict:
     """组装最终输出。
 
@@ -1054,6 +1186,10 @@ def _assemble_output(
         "tier": tier,
         "summary": summary,
         "merge_probability": round(merge_probability, 3),
+        # issue #68: 降级必须说出来 — degraded=true + 原因, 不再静默
+        "merge_probability_basis": (probability_meta or {}).get("basis", "unknown"),
+        "merge_probability_degraded": (probability_meta or {}).get("degraded", False),
+        "merge_probability_degraded_reason": (probability_meta or {}).get("degraded_reason", ""),
         "optimization_path": optimization_path,
         "signals": {
             "positive": signals_pos,
@@ -1063,6 +1199,11 @@ def _assemble_output(
         "checklist": unique_checklist,
         "anti_patterns_hit": [m["key"] for m in anti_matches],
         "anti_patterns_detail": anti_matches,
+        # issue #66: 本次分析考虑了多少反模式 — 让"没触发"可归因
+        "coverage": {
+            **(coverage or {}),
+            "anti_patterns_fired": len(anti_matches),
+        },
         "repo_context": repo_context,
         "comparison": comparison,
         # v1.6.3: PR 大小和影响评估
@@ -1148,20 +1289,42 @@ def analyze_pr(
     )
 
     # ---- Phase 3: 合并概率估算 + 优化路径 (Section 9) ----
-    merge_probability, optimization_path, comparison = _estimate_merge_probability(
-        signals_neg=signals_neg, signals_pos=signals_pos, signals_neu=signals_neu,
-        tier=tier, repo_context=repo_context,
+    merge_probability, optimization_path, comparison, probability_meta = (
+        _estimate_merge_probability(
+            signals_neg=signals_neg, signals_pos=signals_pos, signals_neu=signals_neu,
+            tier=tier, repo_context=repo_context,
+        )
     )
 
+    # issue #66: 反模式库对本 PR 的可匹配面盘点
+    coverage = anti_pattern_coverage(repo, repo_root)
+
     # ---- Phase 4: 输出组装 ----
-    return _assemble_output(
+    result = _assemble_output(
         repo=repo, title=title, tier=tier,
         signals_pos=signals_pos, signals_neg=signals_neg, signals_neu=signals_neu,
         checklist=checklist, anti_matches=anti_matches, repo_context=repo_context,
         merge_probability=merge_probability, optimization_path=optimization_path,
         comparison=comparison, pr_size=pr_size, pr_size_label=pr_size_label,
         impact_score=impact_score, risk_level=risk_level, risk_description=risk_description,
+        coverage=coverage, probability_meta=probability_meta,
     )
+
+    # issue #61: impact / review 在 analyze 主路径统一计算 (coach / analyze /
+    # MCP analyze_pr 共用), 无 diff_stat 时显式给 null 而不是省略 key。
+    if diff_stat:
+        from dataclasses import asdict
+        from .pr_metadata import assess_impact, assess_review_complexity
+
+        impact = assess_impact(title, body, diff_stat)
+        review = assess_review_complexity(impact, title, body)
+        result["impact"] = asdict(impact)
+        result["review"] = asdict(review)
+    else:
+        result["impact"] = None
+        result["review"] = None
+
+    return result
 
 
 # ============================================================

@@ -5,6 +5,203 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 
 # Changelog
 
+
+## [2.1.2] - 2026-10-03
+
+> **Cut because 2.1.1 repeated the exact mistake 2.1.0 made.** The slot-key fix
+> in 2.1.1 landed in a module `apply()` never reads, so the shipped bundle still
+> injected invented slot names. Verified against a simulated DSH host this time,
+> not against a grep.
+
+### Fixed
+- **`apply()` now registers into slots that actually exist.** 2.1.1 fixed the
+  keys in `src/client/slots.ts` and left `src/index.ts` importing
+  `src/ui/surfaces.ts`, whose `SURFACE_PLAN` is the table `apply()` reads. That
+  table still said `ui-sidebar` / `ui-settings-plugins` — names I inferred from
+  tutorial prose, neither in the shipped catalog. The bundle carried both sets
+  and the runtime used the wrong one; `client/slots.ts` was dead code. (issue #95)
+
+### Changed
+- `SETTINGS_SURFACES` in `src/ui/surfaces.ts` is the single source for every
+  placement — `sidebar.footer.action` (root list), `conversation.view` (session),
+  `sidebar.right.pane.tab` (session). `client/slots.ts` derives from it rather
+  than declaring its own copies; two tables for one fact is what let them drift.
+- The invented names are gone from comments too, so a grep finds nothing rather
+  than the paragraph where I explained they were wrong.
+
+### Verified
+
+Simulated a DSH host that only accepts keys in the real catalog, called
+`apply()`, and looked at what landed:
+
+```
+sidebar.footer.action   -> pr-genius.dashboard     component=REAL
+conversation.view       -> pr-genius.advisor-tab   component=REAL
+sidebar.right.pane.tab  -> pr-genius.advisor-panel component=REAL
+sidebar.footer.action   -> pr-genius.preferences   component=REAL
+SKIPPED (not in DSH catalog): none
+```
+
+Stale keys in `dist`: **0**. `tsc` 0, `vitest` 34 passed, `validate --strict` 0.
+
+### The pattern, recorded so it stops recurring
+
+Three releases, one shape:
+
+| | changed | verified | user hit |
+|---|---|---|---|
+| #89 | `parse_frontmatter` | called `parse_frontmatter` | `load_anti_patterns` → `_parse_simple_frontmatter` |
+| #90 | `src/client/*` | `tsc` + `grep dist` | entry never imported it |
+| #95 | `src/client/slots.ts` | `grep dist` found the keys | `apply()` read the other table |
+
+"Exists in the artefact" is not "fixed on the path a user takes." The runtime
+simulation above is the check that would have caught all three.
+
+
+## [2.1.1] - 2026-10-03
+
+> **This release exists to make two v2.1.0 claims true.** Both were wrong as
+> published, were verified wrong against the published artifacts, and are
+> retracted in the v2.1.0 entry below.
+
+### Fixed
+- **Block scalars no longer leak a literal `|` — for real this time.** v2.1.0
+  claimed this and shipped without it, because the fix landed in
+  `parser.py::parse_frontmatter` while the analyzer's load path
+  (`evaluator.py::load_anti_patterns`) calls `_parse_simple_frontmatter`. Same
+  file, different function. **12/251 patterns still leaked after 2.1.0.** Both
+  parsers now share one `_fold_block_scalars` pre-pass and one `_finish_scalar`.
+  Verified on the path production uses: `load_anti_patterns('.') -> 0/251`.
+  (issue #51, #89)
+- **The client layer is now in the bundle.** v2.1.0 claimed slots were declared
+  by augmenting `SlotMap` and components were React. The modules existed in the
+  source tree and were **not imported by `src/index.ts`**, so they never shipped;
+  `dist/index.mjs` contained neither, and `apply()` still registered `null` as
+  the component. The entry now imports the layer, and `register` gets a real
+  component per surface. (issue #90, #86)
+- **Slot keys match the platform's catalog.** `ui-sidebar` and
+  `ui-settings-plugins` were names I inferred from tutorial prose; neither
+  exists in the shipped catalog. Replaced with `sidebar.footer.action` (root
+  list), `conversation.view` (session), `sidebar.right.pane.tab` (session) —
+  read from the reference plugin's source. (issue #86)
+
+### Changed
+- Test runner is **vitest**, not `node --test`. Node's strip-only type removal
+  does not handle JSX (`ERR_UNKNOWN_FILE_EXTENSION .tsx`) — the same class of
+  limit as the constructor parameter properties in #2724. The platform's
+  components are `.tsx`, so a JSX-aware runner is required. 34/34 pass.
+
+### Not fixed (recorded so it is not forgotten)
+- #57 `contributor_view` documentation, #58 `issue`/`issue-batch` docs
+- #64 `test_crawler_friendly_count` still fails on live GitHub data
+- #65 `validate.py` still exits 2 with a confusing message when PyYAML is missing
+- #66 trigger coverage is now **measured** (`scripts/measure_pattern_coverage.py`)
+  but the 96%-do-not-fire problem itself is not solved; measuring is the
+  prerequisite, not the cure
+- #59 #61 #62 #63 #70 #71 #72 were addressed earlier and have receipts on the
+  issues; they are listed there rather than here.
+
+
+> **⚠️ CORRECTION (2026-10-03)** — two claims below the 2.1.0 entry were wrong as
+> published and are retracted inline:
+> 1. "YAML block scalars no longer leak a literal `|`" — the fix did not reach
+>    the analyzer's load path; **12/251 patterns still leak** (issue #89).
+> 2. "Slots are declared by augmenting `SlotMap`, components are React" — those
+>    modules are not imported by `src/index.ts` and are absent from the shipped
+>    bundle; `apply()` still passes `null` as the component (issue #90, #86).
+>
+> Both were verified against the published `prgenius-core==2.1.0` / `pr-genius@2.1.0`
+> artifacts. The 2.1.0 artifacts remain published; the corrections live here and
+> in the linked issues.
+
+## [2.1.0] - 2026-10-03
+
+### Added
+- `prgenius doctor` — install/data/MCP self-test, for the "why is my analysis
+  empty" case. Answers: Python and package versions, knowledge-base
+  readability, whether `gh` is usable, whether the MCP service connects.
+  Also exposed as the `prgenius_doctor` MCP tool (the tool count is now 14).
+- `scripts/measure_pattern_coverage.py` — measures how often pattern triggers
+  actually fire on real PR text, so "generic" has a criterion instead of being
+  an adjective.
+- `scripts/print_data_scale.py` — reproducible corpus counts.
+
+### Fixed
+- **`status` no longer dies when `gh` is present but unexecutable** (WSL with a
+  Windows-only `gh` in PATH). The curl + `GITHUB_TOKEN` fallback existed in
+  `333ac8b` and had been lost; it is restored and widened — the historical gate
+  caught only `FileNotFoundError`, while the reported traceback is
+  `PermissionError`. `auto-ping` and `auto-rebase` write paths use the same
+  helper. (issue #55)
+- **YAML block scalars no longer leak a literal `|`** — *partially* (see correction).
+  The fix landed in `parse_frontmatter`, but the analyzer's load path
+  (`evaluator.py::load_anti_patterns`) calls `_parse_simple_frontmatter`, which
+  does not understand block scalars. Measured against the 2.1.0 package:
+  **12/251 patterns still leak `|`.** The CHANGELOG for 2.1.0 claimed this was
+  fixed; that claim was wrong and is retracted here. (issue #51, #89)
+- **URL list items no longer parse as dicts.** `- https://…` split on its colon
+  into `{"https": "//…"}`, dropping the scheme into the key. (issue #60)
+- `merge_probability` no longer presents a tier default as if measured — it now
+  returns `basis: measured` with a real rate, or `merge_probability_degraded`
+  with a reason. A URL string in `external_merge_rate_30` is no longer coerced
+  into a number. (issue #68)
+- `triage` no longer passes silently when no policy is loaded. (issue #63)
+- MCP `list_open_prs` honours its `repo` argument. (issue #74)
+- `coach` / `analyze` JSON carries `impact` and `review`. (issue #61)
+
+### Changed
+- Dependencies build against `@deepseek-ai/cordis` 4.0.4 and
+  `@deepseek-ai/schemastery` 3.18.4 — the platform's own packages — not the
+  public `cordis` / `schemastery`. Two different `Context` types; a plugin
+  compiled against one is not assignable to the other's `Plugin<any>`.
+- Slots and components — **the 2.1.0 claim here was wrong and is retracted**.
+  `src/client/slots.ts` (SlotMap augmentation) and `src/client/AdvisorPanel.tsx`
+  (React components) exist in the source tree but are **not imported by
+  `src/index.ts`**, so they never reach the bundle. `dist/index.mjs` contains
+  neither, and `apply()` still calls `register(..., null)`. The shipped bundle's
+  slot behaviour is unchanged from 2.0.0. (issue #90, #86)
+- README, `docs/BLOG.md` and `docs/dsh-integration.md` re-measured: 943 patterns
+  (251 anti + 692 success) across 67 repos, 14 MCP tools. The unmeasurable
+  "100% quality pass rate" claim is removed rather than replaced, and the
+  comparison table that summed to 2116 against a real 943 is gone.
+  (issues #52, #53, #54, #56, #73, #75)
+- Success patterns documented as retrieval/reference only — they do not feed
+  scoring. (issue #69)
+
+
+## [2.0.0] - 2026-10-03
+
+### Added
+- **DSH (Cordis) plugin.** `name` / `inject` / `apply` / `provide` contract with a
+  Schemastery `Config`: 12 tunables, every one settable from `cordis.yml` without
+  touching code, and invalid values fail at load naming the field.
+- **Four surfaces** on the researched slot map: PR Intelligence Dashboard (sidebar),
+  Advisor session tab (`conversation.view`), the same as a right-hand panel, and
+  `/prgenius`. Maintainer mode is the same surfaces on a different projection.
+- `locale/` with EN and 简体中文.
+- `docs/dsh-ui-slot-api.md` — the UI slot / sidebar / settings contract this was
+  written against.
+- `docs/compatibility.md` — DSH version matrix, every cell marked unrun.
+- `docs/maturity-self-assessment.md` — form completeness 70%, engineering
+  convergence 100%, equal-weighted 85%.
+- `scripts/check_dsh_plugin_contract.py` — structural conformance without a
+  runtime: 27/27 blocking checks.
+- `tsdown.config.ts`, `.oxlintrc.json`, `tsconfig.json` (strict).
+
+### Changed
+- Version is now a single source: `prgenius/pyproject.toml` fans out through
+  `scripts/sync_version.py` to `server.json`, `glama.json`, `package.json` and
+  `Dockerfile`.
+- `package.json` `exports` point at the built `dist/*.mjs`, not TypeScript source;
+  `prepublishOnly` builds and tests before publish.
+
+### Fixed
+- TypeScript constructor parameter properties broke Node strip-only type
+  stripping (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`); fields are declared longhand.
+- Probing for `ctx.command` threw before the probe could run — Cordis reads of
+  absent properties raise, so detection now goes through `Reflect.has`, and
+  `inject` stays empty so the plugin still loads without a web host.
+
 All notable changes to pr-genius are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repo uses
 GitHub tag/release compare links per Keep a Changelog guidance.

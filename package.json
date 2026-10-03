@@ -1,9 +1,10 @@
 {
   "name": "pr-genius",
-  "version": "1.9.1",
-  "description": "PR 评估和建议工具 — 基于历史反模式和成功模式",
+  "version": "2.1.2",
+  "description": "PR 评估和建议工具 — 基于历史反模式和成功模式。DSH (Cordis) 插件壳 + Python FastMCP 分析引擎。",
   "author": "zsxh1990",
   "license": "MIT",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/zsxh1990/pr-genius.git"
@@ -13,16 +14,92 @@
     "deepseek",
     "deepseek-harness",
     "pr",
-    "code-review"
+    "code-review",
+    "cordis"
   ],
+  "engines": {
+    "node": "^22.19.0 || >=24"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    },
+    "./config": {
+      "types": "./dist/config.d.mts",
+      "default": "./dist/config.mjs"
+    }
+  },
   "files": [
+    "dist",
+    "src",
     "skill",
+    "anti-patterns",
+    "success-patterns",
+    "profiles",
+    "docs/policies",
+    "locale",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsdown",
+    "prepublishOnly": "npm run build && npm test"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ],
+      "platform": "web"
+    },
+    "compatibility": {
+      "dshReleases": {
+        "0.1.5-rc.1": "planned",
+        "0.1.7-rc.2": "planned",
+        "0.2.0-rc.2": "planned"
+      }
     }
+  },
+  "peerDependencies": {
+    "cordis": ">=3 <5"
+  },
+  "dependencies": {
+    "schemastery": "^3.18.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/dsh": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.0.1-rc.1",
+    "@deepseek-ai/dsh-client-ui-cordis": "0.0.1-rc.3",
+    "@deepseek-ai/dsh-client-ui-slots": "0.0.1-rc.1",
+    "@deepseek-ai/dsh-cordis-client-runner": "0.0.1-rc.3",
+    "@deepseek-ai/dsh-session-projection": "0.0.1-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.4",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "cordis": "4.0.0-rc.10",
+    "oxlint": "^1.86.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tsdown": "^0.23.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  },
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "publishConfig": {
+    "access": "public"
   }
 }

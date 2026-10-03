@@ -11,9 +11,23 @@ updates:
         patterns:
           - "*"
 
-  # Python (if/when we add requirements.txt)
-  - package-ecosystem: "pip"
+  # npm —— DSH 插件壳的依赖（schemastery / cordis / tsdown / oxlint / vitest / typescript）
+  # 这条是 v2.0.0 引入的：此前仓里没有 JS 依赖，也没有 npm 生态，
+  # 加了包却不配 npm 就等于让它们永远停在当前版本。
+  - package-ecosystem: "npm"
     directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      npm:
+        patterns:
+          - "*"
+
+  # Python —— 清单在 prgenius/ 子目录（包名 prgenius-core），不在仓根。
+  # 目录写 "/" 只会盯到根下的 requirements.txt，看不进真正的 pyproject.toml。
+  - package-ecosystem: "pip"
+    directory: "/prgenius"
     schedule:
       interval: "weekly"
       day: "monday"

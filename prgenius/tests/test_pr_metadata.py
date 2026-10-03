@@ -25,10 +25,23 @@ class TestParseDiffStat:
         assert deleted == 5
 
     def test_single_file_diff(self):
-        """Parse single file diff stat."""
+        """Parse single file diff stat.
+
+        issue #59: "N | <bar>" rows follow git diff --stat semantics — N is
+        total churn and the +- histogram splits it into insertions/deletions.
+        "10 +++--" → 6 insertions, 4 deletions (was: added=10, deleted invented).
+        """
         files, added, deleted = parse_diff_stat("file.py | 10 +++--")
         assert files == 1
-        assert added == 10
+        assert added == 6
+        assert deleted == 4
+
+    def test_single_file_pure_insertion(self):
+        """issue #59: 'file.py | 5 +' → 5 added, 0 deleted (no invented deletions)."""
+        files, added, deleted = parse_diff_stat("file.py | 5 +")
+        assert files == 1
+        assert added == 5
+        assert deleted == 0
 
     def test_empty_diff_stat(self):
         """Handle empty diff stat."""

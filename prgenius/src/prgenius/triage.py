@@ -363,6 +363,23 @@ def triage_pr(
         generic_violations.append(dup_violation)
 
     if not policy:
+        # issue #63: no policy must NOT read as "policy passed". Fall back to
+        # the universal anti-pattern library and surface the hits so a CI gate
+        # or an LLM agent can see the blind spot instead of a rubber stamp.
+        from .evaluator import check_anti_patterns
+
+        fallback_matches = check_anti_patterns(title, "", repo, root, body=body)
+        fallback_signals = [
+            {
+                "key": m.get("key", "?"),
+                "severity": m.get("severity", "medium"),
+                "matched_keyword": m.get("matched_keyword", ""),
+                "symptom": m.get("symptom", ""),
+                "fix_action": m.get("fix_action", ""),
+                "source_pr": m.get("source_pr", ""),
+            }
+            for m in fallback_matches
+        ]
         return {
             "verdict": "needs_preflight",
             "repo": repo,
@@ -380,6 +397,13 @@ def triage_pr(
                 "run tests locally + check CI status",
             ],
             "violations": generic_violations,
+            # Universal anti-pattern fallback (mirrors analyze's negative signals)
+            "fallback_signals": fallback_signals,
+            "fallback_hit_count": len(fallback_signals),
+            # Exit-code contract for CI (issue #63):
+            #   2 = no policy loaded, no universal anti-patterns matched
+            #   3 = no policy loaded, universal anti-patterns matched
+            "suggested_exit_code": 3 if fallback_signals else 2,
         }
 
     violations = _check_policy_rules(title, body, diff_stat, policy)

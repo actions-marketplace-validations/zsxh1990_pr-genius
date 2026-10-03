@@ -277,3 +277,75 @@ def test_search_patterns_duplicate_query():
     assert len(results) >= 1
     keys = [r.get("key") for r in results]
     assert any("duplicate" in (k or "") for k in keys), f"got: {keys}"
+
+
+# ============================================================
+# issue #74: list_open_prs must accept a repo filter
+# ============================================================
+
+def test_list_open_prs_accepts_repo_arg():
+    """README documents list_open_prs(repo=...) — the fn must accept it.
+
+    issue #74 repro: fn(repo='encode/httpx') used to raise TypeError.
+    """
+    if not _has_mcp_dep():
+        pytest.skip("mcp package not installed (pip install mcp>=1.0)")
+    from prgenius.mcp import _load_tools
+    server = _load_tools(REPO_ROOT_STR)
+    tools = getattr(getattr(server, "_tool_manager", None), "_tools", None)
+    if tools is None or "list_open_prs" not in tools:
+        pytest.skip("FastMCP tool manager not introspectable")
+    fn = getattr(tools["list_open_prs"], "fn", None)
+    if fn is None:
+        pytest.skip("FastMCP Tool does not expose .fn")
+    # Must not raise TypeError for the documented signature
+    fn(repo="encode/httpx")
+    fn(repo="encode/httpx", author="someone")
+
+
+# ============================================================
+# issue #70: prgenius_doctor tool registered + doctor report shape
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_mcp_doctor_tool_registered():
+    if not _has_mcp_dep():
+        pytest.skip("mcp package not installed (pip install mcp>=1.0)")
+    from prgenius.mcp import _load_tools
+    server = _load_tools(REPO_ROOT_STR)
+    tools = await server.list_tools()
+    names = {t.name for t in tools}
+    assert "prgenius_doctor" in names
+
+
+def test_run_doctor_report_shape():
+    from prgenius.doctor import run_doctor
+    report = run_doctor(Path(REPO_ROOT_STR))
+    assert "ok" in report
+    assert "prgenius_version" in report
+    assert "python_version" in report
+    assert "knowledge_base" in report
+    assert "gh" in report
+    assert "mcp" in report
+    kb = report["knowledge_base"]
+    assert kb["anti_patterns"] > 0
+    assert kb["readable"] is True
+
+
+# ============================================================
+# issue #72: MCP input validation
+# ============================================================
+
+def test_validate_pr_args_rejects_impossible_values():
+    from prgenius.mcp import _validate_pr_args
+    import pytest as _pytest
+    with _pytest.raises(ValueError):
+        _validate_pr_args(-1, 0.5, "NONE", "MERGEABLE")
+    with _pytest.raises(ValueError):
+        _validate_pr_args(0, 2.0, "NONE", "MERGEABLE")
+    with _pytest.raises(ValueError):
+        _validate_pr_args(0, 0.5, "INVALID_VALUE", "MERGEABLE")
+    with _pytest.raises(ValueError):
+        _validate_pr_args(0, 0.5, "NONE", "MAYBE")
+    # valid values pass
+    _validate_pr_args(0, 0.5, "CONTRIBUTOR", "UNKNOWN")

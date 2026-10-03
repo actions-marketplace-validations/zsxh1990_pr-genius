@@ -20,6 +20,7 @@ SUBCOMMANDS = [
     "coach",
     "eval",
     "triage",
+    "doctor",
     "suggest",
     "harvest",
     "profile",
@@ -158,19 +159,49 @@ def test_analyze_subcommand_invokes_cmd_analyze(mock_analyze):
 
 @patch("prgenius.cli.triage_pr")
 def test_triage_subcommand_invokes_cmd_triage(mock_triage):
-    """Invoking 'triage' should call cmd_triage which calls triage_pr."""
+    """Invoking 'triage' should call cmd_triage which calls triage_pr.
+
+    issue #63: verdict=pass only occurs with policy_loaded=True, and that is
+    the only path that may exit 0.
+    """
     mock_triage.return_value = {
         "verdict": "pass",
         "repo": "org/repo",
         "message": "ok",
-        "policy_loaded": False,
+        "policy_loaded": True,
         "violations": [],
-        "rules_checked": 0,
-        "policy_file": "",
+        "rules_checked": 3,
+        "policy_file": "docs/policies/org-repo.md",
     }
     rc = main(["triage", "fix: typo", "--repo", "org/repo", "--format", "json"])
     assert rc == 0
     mock_triage.assert_called_once()
+
+
+@patch("prgenius.cli.triage_pr")
+def test_triage_no_policy_exits_nonzero(mock_triage):
+    """issue #63: no policy must not exit 0 (CI treats 0 as 'policy passed').
+
+    exit 2 = no policy + no universal anti-patterns; exit 3 = no policy + hits.
+    """
+    base = {
+        "verdict": "needs_preflight",
+        "repo": "org/repo",
+        "message": "No maintainer policy found",
+        "policy_loaded": False,
+        "violations": [],
+        "generic_checks": [],
+    }
+    mock_triage.return_value = {**base, "fallback_signals": []}
+    rc = main(["triage", "fix: typo", "--repo", "org/repo", "--format", "json"])
+    assert rc == 2
+
+    mock_triage.return_value = {
+        **base,
+        "fallback_signals": [{"key": "some-anti-pattern", "severity": "high"}],
+    }
+    rc = main(["triage", "fix: typo", "--repo", "org/repo", "--format", "json"])
+    assert rc == 3
 
 
 @patch("prgenius.cli.check_status")
@@ -226,3 +257,63 @@ def test_profile_get_not_found(mock_profile_get):
     mock_profile_get.return_value = None
     rc = main(["profile", "get", "unknown/repo"])
     assert rc == 2
+
+
+# ---------------------------------------------------------------------------
+# issue #72: CLI input validation — impossible values must be rejected
+# ---------------------------------------------------------------------------
+
+
+def test_analyze_rejects_negative_star_count():
+    """--star-count < 0 is impossible; argparse must reject it (exit 2)."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["analyze", "test", "--repo", "encode/httpx", "--star-count", "-1000"])
+    assert exc_info.value.code == 2
+
+
+def test_analyze_rejects_merge_rate_above_one():
+    """--repo-merge-rate must be in [0.0, 1.0]."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["analyze", "test", "--repo", "encode/httpx", "--repo-merge-rate", "2.0"])
+    assert exc_info.value.code == 2
+
+
+def test_analyze_rejects_bad_author_association():
+    """--author-association must be one of the known enums."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["analyze", "test", "--repo", "encode/httpx",
+              "--author-association", "INVALID_VALUE"])
+    assert exc_info.value.code == 2
+
+
+def test_analyze_rejects_bad_mergeable():
+    """--mergeable must be one of MERGEABLE/CONFLICTING/UNKNOWN."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["analyze", "test", "--repo", "encode/httpx", "--mergeable", "MAYBE"])
+    assert exc_info.value.code == 2
+
+
+def test_coach_rejects_negative_star_count():
+    """coach shares the same validators as analyze."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["coach", "test", "--repo", "encode/httpx", "--star-count", "-1"])
+    assert exc_info.value.code == 2
+
+
+# ---------------------------------------------------------------------------
+# issue #70: doctor subcommand
+# ---------------------------------------------------------------------------
+
+
+def test_doctor_subcommand_json(capsys):
+    """doctor --format json emits a machine-readable self-test report."""
+    rc = main(["--repo-root", str(REPO_ROOT), "doctor", "--format", "json"])
+    captured = capsys.readouterr()
+    import json as _json
+    report = _json.loads(captured.out)
+    for key in ("ok", "prgenius_version", "python_version", "knowledge_base",
+                "gh", "mcp", "sample", "warnings"):
+        assert key in report, f"missing doctor key: {key}"
+    # exit 0 = OK, 1 = hard failure — either is a valid self-test outcome
+    assert rc in (0, 1)
+    assert report["knowledge_base"]["anti_patterns"] > 0
