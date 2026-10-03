@@ -6,6 +6,53 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.1.0] - 2026-10-03
+
+### Added
+- `prgenius doctor` — install/data/MCP self-test, for the "why is my analysis
+  empty" case. Answers: Python and package versions, knowledge-base
+  readability, whether `gh` is usable, whether the MCP service connects.
+  Also exposed as the `prgenius_doctor` MCP tool (the tool count is now 14).
+- `scripts/measure_pattern_coverage.py` — measures how often pattern triggers
+  actually fire on real PR text, so "generic" has a criterion instead of being
+  an adjective.
+- `scripts/print_data_scale.py` — reproducible corpus counts.
+
+### Fixed
+- **`status` no longer dies when `gh` is present but unexecutable** (WSL with a
+  Windows-only `gh` in PATH). The curl + `GITHUB_TOKEN` fallback existed in
+  `333ac8b` and had been lost; it is restored and widened — the historical gate
+  caught only `FileNotFoundError`, while the reported traceback is
+  `PermissionError`. `auto-ping` and `auto-rebase` write paths use the same
+  helper. (issue #55)
+- **YAML block scalars no longer leak a literal `|`** into output. `symptom: |`
+  kept the indicator in the value; 12 of 251 patterns were affected. (issue #51)
+- **URL list items no longer parse as dicts.** `- https://…` split on its colon
+  into `{"https": "//…"}`, dropping the scheme into the key. (issue #60)
+- `merge_probability` no longer presents a tier default as if measured — it now
+  returns `basis: measured` with a real rate, or `merge_probability_degraded`
+  with a reason. A URL string in `external_merge_rate_30` is no longer coerced
+  into a number. (issue #68)
+- `triage` no longer passes silently when no policy is loaded. (issue #63)
+- MCP `list_open_prs` honours its `repo` argument. (issue #74)
+- `coach` / `analyze` JSON carries `impact` and `review`. (issue #61)
+
+### Changed
+- Dependencies build against `@deepseek-ai/cordis` 4.0.4 and
+  `@deepseek-ai/schemastery` 3.18.4 — the platform's own packages — not the
+  public `cordis` / `schemastery`. Two different `Context` types; a plugin
+  compiled against one is not assignable to the other's `Plugin<any>`.
+- Slots are declared by augmenting `SlotMap`, components are React. Both match
+  the platform's published type definitions.
+- README, `docs/BLOG.md` and `docs/dsh-integration.md` re-measured: 943 patterns
+  (251 anti + 692 success) across 67 repos, 14 MCP tools. The unmeasurable
+  "100% quality pass rate" claim is removed rather than replaced, and the
+  comparison table that summed to 2116 against a real 943 is gone.
+  (issues #52, #53, #54, #56, #73, #75)
+- Success patterns documented as retrieval/reference only — they do not feed
+  scoring. (issue #69)
+
+
 ## [2.0.0] - 2026-10-03
 
 ### Added
