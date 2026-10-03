@@ -12,7 +12,7 @@
  * 编译、单元测试与静态契约自洽；渲染与运行时行为需 DSH 运行时验证，本机未执行。
  */
 import type { Context } from '@deepseek-ai/cordis'
-import { planRegistrations, SURFACE_IDS } from './ui/surfaces.ts'
+import { planRegistrations, registrationCalls, SURFACE_IDS } from './ui/surfaces.ts'
 // 导入 client 层是让它进 bundle 的唯一途径 —— 此前它只是躺在 src/client/ 里
 // 未被引用，所以 tsc 通过、bundle 里却没有它（issue #90）。
 import { Dashboard, Advisor, AdvisorPanel, Preferences, type AdvisorFace } from './client/AdvisorPanel.tsx'
@@ -165,10 +165,11 @@ export function apply(ctx: Context, config: Config): void {
   const disposeService = ctx.provide('prGenius', service)
 
   // ── 四个界面 ──────────────────────────────────────────────────────────
-  // 落点来自 docs/dsh-ui-slot-api.md 的权威 slot 表，四个界面的 slot 归属收敛在
-  // SURFACE_PLAN 一处，可被测试断言（assertSlotPlacement），不靠渲染验证。
+  // 落点来自 src/ui/slot-catalog.ts（上游 DSH slot-catalog 快照的座位表，唯一
+  // 真相源），四个界面的 slot 归属收敛在 SURFACE_PLAN 一处，可被测试断言
+  // （assertSlotPlacement），不靠渲染验证。
   //
-  // 命令面走 ctx.command（教程明文 API）。UI slot 面走能力探测：ui-slots 的
+  // 命令面走 ctx.command（Cordis 命令 API，不是 slot）。UI slot 面走能力探测：ui-slots 的
   // 组件形态与 renderer 约定属于运行时契约，本机无 DEEPSEEK_API_KEY 跑不起 DSH，
   // 所以这里只在宿主真的提供 slots 服务时才注册，并把组件实现留给 UI 层注入。
   // 宁可少注册一个面，也不假称「已渲染」。
@@ -222,18 +223,35 @@ export function apply(ctx: Context, config: Config): void {
   ) {
     for (const surface of planRegistrations()) {
       if (surface.kind === 'command') continue
-      try {
-        const dispose = slotsCtx.slots.inject(surface.slot, () =>
-          slotsCtx.slots!.register!(
-            { name: surface.id, kind: surface.kind },
-            // 真实组件，不再是 null —— null 注册等于占了位置却不渲染（issue #86/#90）。
-            COMPONENTS[surface.id] ?? null,
-          ),
+      // 保守降级：落点不在上游 catalog 里就**不注册**，只记 warn。
+      // 绝不用猜测的 key 注册 —— v2.0.0/v2.1.0/v2.1.1/v2.1.2 连续四版都栽在这。
+      const calls = registrationCalls(surface)
+      if (calls.length === 0) {
+        logger.warn(
+          'surface %s NOT registered: slot %s is not in the upstream DSH slot catalog ' +
+            '(refuse to register an unconfirmed key)',
+          surface.id,
+          surface.seat?.key ?? '(none)',
         )
-        surfaceDisposers.push(dispose)
-        logger.info('surface registered: %s -> %s', surface.id, surface.slot)
-      } catch (err) {
-        logger.warn('surface %s not registered on %s: %s', surface.id, surface.slot, String(err))
+        continue
+      }
+      for (const { slotKey, options } of calls) {
+        try {
+          // options.name 是 slot key（上游 example 的形状），外加基数要求的
+          // cell 选项（list→id / keyed→key）。`kind`/`scope` 不是 register 选项。
+          const dispose = slotsCtx.slots.inject(slotKey, () =>
+            slotsCtx.slots!.register!(
+              options,
+              // 真实组件，不再是 null —— null 注册等于占了位置却不渲染（issue #86/#90）。
+              COMPONENTS[surface.id] ?? null,
+            ),
+          )
+          surfaceDisposers.push(dispose)
+          // 打印实际注入的 key，供 verify 脚本逐个对照上游 catalog。
+          logger.info('surface registered: %s -> %s opts=%j', surface.id, slotKey, options)
+        } catch (err) {
+          logger.warn('surface %s not registered on %s: %s', surface.id, slotKey, String(err))
+        }
       }
     }
   } else {
