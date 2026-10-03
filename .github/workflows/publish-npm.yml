@@ -24,17 +24,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
       # pnpm 必须在 setup-node 的 `cache: pnpm` 之前装好 —— setup-node 会去调
       # pnpm 解析 lockfile，没有就报 "Unable to locate executable file: pnpm"。
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: pnpm
