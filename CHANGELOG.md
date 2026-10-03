@@ -6,6 +6,107 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.1.5] - 2026-10-04
+
+> **Cut to make the DSH web sidebar actually reach a real host — and to stop two
+> more "verified locally" claims from shipping.**
+>
+> Three separate defects sat between `apply()` and a live DSH web host. The first
+> is issue #100. The second and third were found by reading the shipped guard and
+> then **disproving the mock** rather than trusting it. Every fix below is backed
+> by a test that was shown to go red when the fix is reverted (negative test), and
+> by `npm run smoke:release` against the packed tarball.
+
+### Fixed
+
+- **The four UI surfaces now reach `ctx.slots` in a real host (issue #100).**
+  The registration probe used `Reflect.has(ctx, 'slots')`. On the DSH dynamic
+  facade that is a proxy `has` trap answering `declared.has(name)`, and with
+  `inject: []` it is **always false — it does not throw**. The `&&` chain
+  therefore short-circuited and **no surface ever registered**, behind a
+  reassuring warn line. Issue #100's report said the guard throws and proposed
+  `inject: ['slots', …]`; both are wrong — the throw only happens on a *direct*
+  `ctx.slots` read, and cordis `Plugin.Base.inject` is a hard load gate
+  ("it only loads while all are available"), so declaring `slots` would make the
+  plugin not load on any non-web host. Probing now goes through
+  `ctx.get(name)`, which cordis documents as "without the inject requirement".
+  `inject` stays `[]`. See the CORRECTION note under the 2.1.3 entry.
+
+- **`apply()` no longer dies on `ctx.logger` before it can probe anything.**
+  `logger` is **not** in the guard's `CTX_VERBS` (checked in the shipped
+  `client.js` *and* upstream `deepseek-harness` `guard.ts`, where `logger` is
+  mentioned zero times), and `LoggerService` is not in the cordis service store
+  (`Context` sets `this.logger = new LoggerService(self)` as a plain property;
+  it never calls `provide()`). So `ctx.logger(…)` — the first statement of
+  `apply()` — hits `denyRead` and throws, which would have cancelled the
+  `ctx.get` fix above entirely. `inject: ['logger']` is *not* an option either:
+  `_checkImpl` finds no provider, `_refresh` marks the fiber INACTIVE, and the
+  plugin never loads. `apply()` now resolves a logger via `Reflect.has(ctx,
+  'logger')` (true on a plain cordis Context, false-and-not-throwing on the
+  guard facade) and falls back to a console-backed logger, so missing logging
+  can never take the plugin down.
+
+- **`PREFERENCES_SLOT` named the wrong seat.** The constant said
+  `sidebar.footer.action`, which is the *dashboard* seat; it is rendered as a
+  `data-slot` attribute, so the shipped markup mis-stated where Preferences sits.
+  The real seat is `settings.section` (that is what `SURFACE_PLAN` registers).
+  Verified against the gate ledger: `settings.section` is accepted.
+
+- **`details` registration sent options the SDK does not accept.** `details` is
+  `single` cardinality; the pinned `CLIENT_SLOT_API` declares only `name` for
+  that cardinality, but we sent `{ name, id, label }`. The gate reported this as
+  `C4.unknown-register-option`. `single` seats now emit `{ name }` only.
+
+### Changed
+
+- **The release smoke gate now mocks the guard instead of bypassing it.**
+  Previously the mocked host attached `slots` as a literal property, which made
+  `Reflect.has` true and `ctx.slots` readable — exactly the code path the real
+  guard denies. The gate has a denyRead-semantics host (direct read throws with
+  the guard's own message, `Reflect.has` answers `declared.has`, `ctx.get` is the
+  optional lookup) and **does not whitelist `logger`**, matching the real
+  `CTX_VERBS`. It captures the plugin's console fallback instead of pretending
+  the facade has a logger. Reintroducing `Reflect.has` + direct-read probing, or
+  a bare `ctx.logger`, turns the gate red.
+
+- **`scripts/sync_version.py` covers two version sites it was missing.**
+  `prgenius/src/prgenius/__init__.py` (`__version__`, the value the wheel and the
+  PyPI smoke step print) and the newest release heading in `CHANGELOG.md` were
+  not checked, even though `CLAUDE.md`'s release process names the first as a
+  file to bump by hand. Drift in either now fails the dry-run that CI already
+  runs. The CHANGELOG check is **check-only** under `--apply`: a missing release
+  heading means the entry was never written, and inventing one would be a false
+  record.
+
+- **`prgenius doctor` stopped understating its own gap by 30×.** It reported
+  "6/251 anti-patterns have no trigger_keywords", which reads as "2.4% are
+  broken". The real split: 6 of **61** keyword-based patterns are missing
+  keywords (those genuinely can never match), and 190 of 251 are imported JSON
+  records that are deliberately keyword-free and skipped by the matcher
+  (`load_anti_patterns`: "JSON patterns 不提取 keywords — 避免假阳性"). Both
+  facts are now stated with their correct denominators, and the JSON set is
+  labelled as reference-only by design rather than as a defect.
+
+- `CHANGELOG.md`'s two duplicate `## [Unreleased]` sections in the modern block
+  were merged into one (Added → Changed → Fixed → Known limits, content kept).
+  The spliced-in pre-2.0 history is now fenced with an explicit marker so its
+  stale `## [Unreleased]` cannot be mistaken for current work.
+
+### Known limits
+
+- **Still never mounted in a live DSH web host.** There is no `DEEPSEEK_API_KEY`
+  on this machine. What is proven: `apply()` emits registrations that land on
+  SDK-declared seats with non-null components, under both a permissive host and a
+  denyRead-semantics host, against the packed tarball. What is not: that anything
+  renders. Issue #102 recruits testers with a real DSH host.
+- **The two slot catalogs still disagree** (pinned SDK 42 keys vs upstream
+  master 92; `details` vs `sidebar.right.pane.tab`). The gate validates against
+  the **pinned** one, because that is what a user installs, and reports the drift
+  as a warning. Registration probes candidates at runtime and degrades rather
+  than guessing.
+- `prgenius doctor` still reports `692/692 success-patterns are not consulted by
+  the scorer`. That is a declared product decision (issue #69), not a defect.
+
 ## [2.1.4] - 2026-10-03
 
 > **Cut for one reason: so the claim "a runtime gate signed off on this" becomes true in CI.**
@@ -90,35 +191,15 @@ non-null component. **It does not prove anything renders.** There is no
 `DEEPSEEK_API_KEY` on this machine and pr-genius has never loaded in a real DSH
 web host. Host-mounting behaviour still needs a real runtime.
 
-## [Unreleased]
+## [Shipped in 2.1.3] — staging notes kept for the gate-findings narrative
 
-### Fixed
-- **The four surfaces render real data instead of `null` / placeholder copy.**
-  (issue #98) Dashboard shows knowledge-base scale and install health from
-  `prgenius_doctor` (numbers come from the analyzer, never typed into the UI),
-  in-flight PR rows from `status_prs` when an author is configured, Advisor runs
-  `coach_pr` and projects tier / signals / checklist / merge probability /
-  coverage, Preferences is a live readout of `service.describe()`. Every value is
-  fetched through `service.callTool` over the real MCP transport and verified in
-  `test/surface-data.test.ts` against a direct Python call plus a
-  `renderToStaticMarkup` assertion.
-- **Slot contracts now match the authoritative slot-catalog, and registration
-  degrades conservatively.** Declarations claimed `conversation.view` and
-  `sidebar.right.pane.tab` were `single`; the catalog says `list` and `keyed`.
-  Registration now uses the catalog's `register({ name, id | key })` shape,
-  Preferences lands on `settings.plugins.tab`, and any slot not verified against
-  the catalog snapshot is skipped with a warning instead of registered on a
-  guessed key. `docs/slot-catalog-evidence.json` freezes the fetched catalog
-  (92 keys from `deepseek-ai/deepseek-harness`, 2026-10-03). Note: there is no
-  slot key named `details` — that is an AppFrame seat name inside `root`'s docs.
-
-### Known limits
-- No DSH host run yet (no `DEEPSEEK_API_KEY` here): component mount and the
-  keyed `sidebar.right.pane.tab` dispatch are unverified at runtime.
-- Preferences is read-only: the service has no config-write API, so no fake
-  save button.
-
-## [Unreleased]
+> **⚠️ 这不是待发布块。** 下面这批条目当年写在 `## [Unreleased]` 里，实际已经
+> 随 **2.1.3** 发布（smoke gate / issue #96、#97、#98 在上面的 2.1.3 小节里有正式
+> 条目），但暂存块本身没被清掉，一直夹在 2.1.3 与 2.1.2 之间，看起来像还有未发布
+> 的工作。现在改掉标题，内容原样保留 —— 尤其是下面「gate 在 v2.1.2 上报了什么」
+> 那段，是当时翻车的现场记录，不该随清理丢掉。
+>
+> 新的待发布条目请写在文档**最上方**的 `## [Unreleased]`（若有），不要写在本节。
 
 ### Added
 - **Release runtime smoke gate** (`scripts/release-smoke/`, `npm run smoke:release`,
@@ -159,6 +240,40 @@ Nothing in the plugin's registration is changed by this entry — that is separa
 The gate's job is to stop a claim like these from shipping unchallenged again.
 
 ### Fixed
+- **The four surfaces render real data instead of `null` / placeholder copy.**
+  (issue #98) Dashboard shows knowledge-base scale and install health from
+  `prgenius_doctor` (numbers come from the analyzer, never typed into the UI),
+  in-flight PR rows from `status_prs` when an author is configured, Advisor runs
+  `coach_pr` and projects tier / signals / checklist / merge probability /
+  coverage, Preferences is a live readout of `service.describe()`. Every value is
+  fetched through `service.callTool` over the real MCP transport and verified in
+  `test/surface-data.test.ts` against a direct Python call plus a
+  `renderToStaticMarkup` assertion.
+- **Slot contracts now match the authoritative slot-catalog, and registration
+  degrades conservatively.** Declarations claimed `conversation.view` and
+  `sidebar.right.pane.tab` were `single`; the catalog says `list` and `keyed`.
+  Registration now uses the catalog's `register({ name, id | key })` shape,
+  Preferences lands on `settings.plugins.tab`, and any slot not verified against
+  the catalog snapshot is skipped with a warning instead of registered on a
+  guessed key. `docs/slot-catalog-evidence.json` freezes the fetched catalog
+  (92 keys from `deepseek-ai/deepseek-harness`, 2026-10-03). Note: there is no
+  slot key named `details` — that is an AppFrame seat name inside `root`'s docs.
+
+  > **⚠️ CORRECTION (2026-10-04)** — two claims in the bullet above are wrong.
+  >
+  > 1. **"Preferences lands on `settings.plugins.tab`"** — no. `SURFACE_PLAN`
+  >    seats Preferences on `settings.section`, and the release gate's ledger
+  >    records the host accepting `settings.section` (list/root). The constant
+  >    `PREFERENCES_SLOT` also wrongly read `sidebar.footer.action` (the
+  >    dashboard seat) — fixed in 2.1.5.
+  > 2. **"there is no slot key named `details`"** — that is only true of
+  >    **upstream master**. The **pinned** SDK a user actually installs
+  >    (`@deepseek-ai/dsh-cordis-client-runner@0.0.1-rc.3`, 42 keys) *does*
+  >    declare `details` (`single`/`session`), and the 2.1.5 gate registers the
+  >    panel into it successfully. The two catalogs disagree; the sentence above
+  >    looked at only one of them and stated a universal negative. Registration
+  >    therefore probes `details` first and `sidebar.right.pane.tab` second, and
+  >    degrades if neither exists (宁缺勿假).
 - **Slot keys are checked against the upstream DSH slot catalog before any
   registration.** `src/ui/slot-catalog.ts` is the single source of truth: the
   92 keys parsed out of
@@ -182,6 +297,12 @@ The gate's job is to stop a claim like these from shipping unchallenged again.
   fetches the upstream catalog and `test/slot-catalog.test.ts` parses those
   bytes into the allowed set before running `apply()`; the allowed set never
   comes from the plugin's own constants.
+
+### Known limits
+- No DSH host run yet (no `DEEPSEEK_API_KEY` here): component mount and the
+  keyed `sidebar.right.pane.tab` dispatch are unverified at runtime.
+- Preferences is read-only: the service has no config-write API, so no fake
+  save button.
 
 ## [2.1.2] - 2026-10-03
 
@@ -378,6 +499,40 @@ simulation above is the check that would have caught all three.
 - Probing for `ctx.command` threw before the probe could run — Cordis reads of
   absent properties raise, so detection now goes through `Reflect.has`, and
   `inject` stays empty so the plugin still loads without a web host.
+
+  > **⚠️ CORRECTION (2026-10-04)** — the mechanism in the bullet above is wrong
+  > in the DSH host, and the belief that "Detecting with `Reflect.has` is safe"
+  > is what shipped issue #100. Verified against the shipped guard at
+  > `node_modules/@deepseek-ai/dsh-cordis-client-runner/lib/client.js`
+  > (`dynamicCordisContext`):
+  >
+  > - `ctx.<name>` **direct read** → `readService(prop, true)` → requires the
+  >   name in `inject`, else `denyRead` **throws**.
+  > - `Reflect.has(ctx, '<name>')` → the proxy's `has` trap → returns
+  >   `declared.has(name)`. **It returns false; it does not throw.** The premise
+  >   above ("detection runs") was therefore false all along.
+  > - `ctx.get('<name>')` → `readService(name, false)` → the optional lookup,
+  >   documented in cordis `ReflectService.get` as "without the inject
+  >   requirement".
+  >
+  > Consequence: with `inject: []`, `Reflect.has` is always false in a real DSH
+  > host, so the probe short-circuits and **no UI surface is ever registered** —
+  > a silent no-op behind a reassuring log line, which is exactly what local
+  > mocks hid (they attach `slots` as a plain property, bypassing the guard).
+  >
+  > Note also that listing `'slots'` in `inject` is **not** the fix: cordis
+  > `Plugin.Base.inject` is a hard load gate ("it only loads while all are
+  > available"), so that would turn "no web host" into "plugin does not load",
+  > which the bullet above was trying to avoid. Optional seats are read through
+  > `ctx.get()`.
+
+---
+
+> **⚠️ HISTORICAL SECTION BEGINS** — everything below this line is the pre-2.0
+> changelog, spliced in during a docs merge. It is kept verbatim as history, but
+> it is **not** maintained here: its own `## [Unreleased]` block is a stale
+> staging area from the 1.x era and has no bearing on current work. Live entries
+> for 2.x and onward are the sections above. Do not append below this line.
 
 All notable changes to pr-genius are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repo uses

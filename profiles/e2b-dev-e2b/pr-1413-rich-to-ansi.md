@@ -1,7 +1,7 @@
 ---
 type: PR Case Study
 title: E2B PR #1413 - replace rich with stdlib ANSI for template logger
-description: zsxh1990 在 E2B 提的 rich → stdlib ANSI refactor PR，成功合并
+description: zsxh1990 在 E2B 提的 rich → stdlib ANSI refactor PR，closed-not-merged
 pr_number: 1413
 pr_url: https://github.com/e2b-dev/E2B/pull/1413
 repo: e2b-dev/E2B
@@ -81,7 +81,7 @@ next_action: "已合并；与 #1458 对比: refactor + stdlib 减法 走通，�
 # E2B PR #1413: refactor: replace rich with stdlib ANSI for template logger
 
 > zsxh1990 在 [e2b-dev/E2B#1413](https://github.com/e2b-dev/E2B/pull/1413) 的 rich → stdlib ANSI refactor PR。  
-> **结果**：✅ merged（2026-06-09）  
+> **结果**：closed-not-merged（2026-06-09，GH API 实测 `state=closed, merged=False`）  
 > **价值**：Ponytail 守则 "stdlib 有就用" 的成功案例。
 
 ---
@@ -102,7 +102,7 @@ next_action: "已合并；与 #1458 对比: refactor + stdlib 减法 走通，�
 | 2026-06-09 17:23 | @changeset-bot："No Changeset found"（changeset 缺） |
 | 2026-06-09 17:24 | @chatgpt-codex-connector[bot] 自动 review |
 | (zsxh1990 后续处理 CLA + changeset) | |
-| 2026-06-09 | ✅ merged |
+| 2026-06-09 | closed-not-merged（`state=closed, merged=False`） |
 
 **CLA + changeset 是 E2B 合并硬性前置**。
 

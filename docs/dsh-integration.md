@@ -2,7 +2,7 @@
 type: Documentation
 title: DSH Integration Guide
 description: How to use pr-genius as an MCP skill inside DeepSeek Harness (DSH)
-version: 2.0.0
+version: 2.1.5
 created: 2026-08-15
 updated: 2026-10-03
 author: zsxh1990
@@ -33,14 +33,15 @@ DeepSeek Harness (DSH, ⭐108k+) is an open-source AI coding agent built on the 
 
 ### Method 1: MCP Skill Mode (Recommended)
 
-In DSH settings or `~/.dsh/settings.json`, add:
+The MCP entry point is `prgenius-core mcp serve` (stdio). In DSH settings or
+`~/.dsh/settings.json`, add:
 
 ```json
 {
   "mcpServers": {
     "pr-genius": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/zsxh1990/pr-genius@main", "pr-genius", "--stdio"],
+      "args": ["--from", "git+https://github.com/zsxh1990/pr-genius@v2.1.4#subdirectory=prgenius", "prgenius-core", "mcp", "serve"],
       "env": {
         "GITHUB_TOKEN": "<your-token>"
       }
@@ -49,12 +50,18 @@ In DSH settings or `~/.dsh/settings.json`, add:
 }
 ```
 
+> The Python package lives in the `prgenius/` subdirectory (there is no
+> repo-root `pyproject.toml`), hence `#subdirectory=prgenius`. The wheel ships
+> code only — the knowledge base lives in the repo checkout, so pass
+> `--repo-root /path/to/pr-genius` when the auto-detected path is wrong.
+
 ### Method 2: Local Development
 
 ```bash
 git clone https://github.com/zsxh1990/pr-genius.git
 cd pr-genius
-pip install -e .
+pip install -e ./prgenius
+pip install "mcp>=1.0,<2.0"
 ```
 
 Then configure DSH to use the local install:
@@ -63,8 +70,8 @@ Then configure DSH to use the local install:
 {
   "mcpServers": {
     "pr-genius": {
-      "command": "pr-genius",
-      "args": ["--stdio"],
+      "command": "prgenius-core",
+      "args": ["mcp", "serve"],
       "env": {
         "GITHUB_TOKEN": "<your-token>"
       }
@@ -73,12 +80,36 @@ Then configure DSH to use the local install:
 }
 ```
 
-### Method 3: Docker (Standalone)
+(`python -m prgenius mcp serve` works the same way.)
+
+### Method 3: Docker (stdio MCP server)
+
+The root `Dockerfile` is a **stdio** MCP server
+(`ENTRYPOINT ["python", "-m", "prgenius", "mcp", "serve"]`) — it does not
+listen on a port, so there is nothing to `-p` map:
 
 ```bash
-docker pull ghcr.io/zsxh1990/pr-genius:latest
-docker run -d --name pr-genius -p 8000:8000 ghcr.io/zsxh1990/pr-genius:latest
+docker build -t pr-genius .
+docker run --rm -i pr-genius
 ```
+
+```json
+{
+  "mcpServers": {
+    "pr-genius": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i", "pr-genius"],
+      "env": {
+        "GITHUB_TOKEN": "<your-token>"
+      }
+    }
+  }
+}
+```
+
+> Note: the image published to `ghcr.io/zsxh1990/pr-genius` is built from
+> `Dockerfile.github_action` (GitHub Action entrypoint), **not** this stdio
+> MCP server. Do not `docker run -p 8000:8000` it — it exposes no HTTP port.
 
 ## Usage Scenarios in DSH
 

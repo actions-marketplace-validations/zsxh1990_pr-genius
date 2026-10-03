@@ -6,6 +6,13 @@ Eliminates version drift between pyproject.toml (canonical source) and:
   - glama.json (Glama directory listing)
   - package.json (npm/DSH metadata)
   - Dockerfile (LABEL + comment header)
+  - prgenius/src/prgenius/__init__.py (__version__)
+  - CHANGELOG.md (latest release heading must lead)
+
+CLAUDE.md's release process names `prgenius/__init__.py` as a file to bump by
+hand, which is exactly how it drifted out of the automated check: the runtime
+value (`python -c "import prgenius; print(prgenius.__version__)"`, also printed
+by the publish-pypi smoke step) came from a file no checker read.
 
 Usage:
     python3 scripts/sync_version.py            # dry-run (print diffs; exit 1 on drift)
@@ -74,6 +81,37 @@ def _check_dockerfile(path: Path, version: str) -> list[str]:
     return []
 
 
+def _check_init_version(path: Path, version: str) -> list[str]:
+    """Check prgenius __init__.py __version__ — the value the wheel actually reports."""
+    if not path.exists():
+        return [f"{path.relative_to(ROOT)}: file not found"]
+    text = path.read_text(encoding="utf-8")
+    m = re.search(r'^__version__\s*=\s*["\'](.+?)["\']', text, re.MULTILINE)
+    old = m.group(1) if m else "???"
+    if old != version:
+        return [f"{path.relative_to(ROOT)}: __version__ {old} -> {version}"]
+    return []
+
+
+def _check_changelog_leads(path: Path, version: str) -> list[str]:
+    """Check the newest release heading in CHANGELOG.md.
+
+    Only the newest heading must match: older entries are history and are never
+    rewritten. `## [Unreleased]` is allowed to sit above it as a staging area.
+    """
+    if not path.exists():
+        return [f"{path.name}: file not found"]
+    text = path.read_text(encoding="utf-8")
+    headings = re.findall(r'^## \[(.+?)\]', text, re.MULTILINE)
+    released = [h for h in headings if h.lower() != "unreleased"]
+    if not released:
+        return [f"{path.name}: no release heading found"]
+    newest = released[0]
+    if newest != version:
+        return [f"{path.name}: newest release heading is [{newest}], expected [{version}]"]
+    return []
+
+
 
 def _apply_server_json(path: Path, version: str) -> tuple[bool, str]:
     """Update server.json: top-level version AND packages[0].version."""
@@ -126,6 +164,22 @@ def _apply_dockerfile(path: Path, version: str) -> tuple[bool, str]:
     return True, f"Dockerfile: updated to v{version}"
 
 
+def _apply_init_version(path: Path, version: str) -> tuple[bool, str]:
+    """Update prgenius __init__.py __version__."""
+    text = path.read_text(encoding="utf-8")
+    new, n = re.subn(
+        r'^(__version__\s*=\s*)["\'](.+?)["\']',
+        rf'\g<1>"{version}"',
+        text, count=1, flags=re.MULTILINE,
+    )
+    if n == 0:
+        return False, f"{path.relative_to(ROOT)}: no __version__ assignment found (not auto-inserted)"
+    if new == text:
+        return False, f"{path.relative_to(ROOT)}: already {version}"
+    path.write_text(new, encoding="utf-8")
+    return True, f"{path.relative_to(ROOT)}: __version__ -> {version}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sync version from pyproject.toml to downstream files")
     parser.add_argument("--apply", action="store_true", help="Actually write changes (default: dry-run)")
@@ -141,11 +195,19 @@ def main() -> int:
             lambda: _apply_json_simple(ROOT / "glama.json", version),
             lambda: _apply_json_simple(ROOT / "package.json", version),
             lambda: _apply_dockerfile(ROOT / "Dockerfile", version),
+            lambda: _apply_init_version(
+                ROOT / "prgenius" / "src" / "prgenius" / "__init__.py", version
+            ),
         ]:
             changed, msg = fn()
             print(f"  [{'UPDATED' if changed else 'OK'}] {msg}")
             if changed:
                 any_changed = True
+        # CHANGELOG is check-only under --apply too: a missing release heading
+        # means the entry was never written, and inventing one would be a false
+        # record. Human writes the entry; this tool only points at the gap.
+        for d in _check_changelog_leads(ROOT / "CHANGELOG.md", version):
+            print(f"  [NEEDS-HUMAN] {d}")
         print(f"\n{'All files synced.' if any_changed else 'All files already in sync.'}")
         return 0
 
@@ -155,6 +217,10 @@ def main() -> int:
     all_drifts.extend(_check_json(ROOT / "glama.json", version))
     all_drifts.extend(_check_json(ROOT / "package.json", version))
     all_drifts.extend(_check_dockerfile(ROOT / "Dockerfile", version))
+    all_drifts.extend(_check_init_version(
+        ROOT / "prgenius" / "src" / "prgenius" / "__init__.py", version
+    ))
+    all_drifts.extend(_check_changelog_leads(ROOT / "CHANGELOG.md", version))
 
     if all_drifts:
         print("DRIFT DETECTED:")

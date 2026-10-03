@@ -2,7 +2,7 @@
 type: Index
 title: pr-genius Index Map
 description: Agent-readable map of every file in this repo and what it does.
-version: 0.7.5
+version: 2.1.5
 created: 2026-07-04
 updated: 2026-07-05
 conforms_to: OKF v0.1

@@ -17,7 +17,6 @@ import { planRegistrations, SURFACE_IDS } from './ui/surfaces.ts'
 // 未被引用，所以 tsc 通过、bundle 里却没有它（issue #90）。
 import { surfaceComponents, type AdvisorFace } from './client/AdvisorPanel.tsx'
 import { slotRegisterDef } from './client/slots.ts'
-import { } from './client/slots.ts'
 import {
   Config,
   PrGeniusConfigError,
@@ -34,14 +33,20 @@ export const name = 'pr-genius'
 export { Config, PrGeniusConfigError, parseConfig }
 export type { Config as ConfigType, ContributorAction, MaintainerAction, RiskTier }
 
-/** 无外部服务依赖；logger/effect 由 Context 自带，不需要 inject。 */
-// `inject` = 我需要什么（契约三件套之一）。本插件不**依赖**任何宿主服务：分析走
-// 自带的 MCP 客户端、知识库是静态文件。命令面与 UI slot 面是**可选贡献**，不是依赖。
-//
-// 这里刻意不把 `command` / `slots` 写进 inject：Cordis 的 ReflectService 在属性
-// 不在 target 上时会直接抛 `cannot get property "X" without inject`，而把它们写成
-// 必填注入又会让没有 web 宿主的环境加载失败 —— 把「界面缺失」升级成「插件不可用」。
-// 所以 inject 为空，取用时用 Reflect.has 探测（见 apply()）。
+/**
+ * `inject` 必须保持为空 —— 不是省事，是硬约束。
+ *
+ * 权威依据：cordis `Plugin.Base.inject`
+ * （node_modules/@deepseek-ai/cordis/lib/types/registry.d.ts）：
+ *   "Services the plugin requires; **it only loads while all are available**."
+ * 即写进 inject 的名字是**加载门**：缺一个，插件整个不加载。把 `slots` / `command`
+ * 写进去，等于把「界面缺失」升级成「插件不可用」—— 正是现有注释警告过的回归。
+ *
+ * 可选的 UI 席位改经 `ctx.get(name)` 读取（见 apply() 里的 optionalService）：
+ * 那条路径**不需要 inject 声明**（cordis ReflectService.get 的 docstring：
+ * "Read a service from the store without the inject requirement."）。
+ * 本插件也不依赖任何宿主服务：分析走自带的 MCP 客户端、知识库是静态文件。
+ */
 export const inject: string[] = []
 
 /** 本插件向宿主提供的服务名，其他插件/UI 可通过 inject: ['prGenius'] 使用。 */
@@ -132,6 +137,76 @@ export function createPrGeniusService(deps: PrGeniusServiceDeps): PrGeniusServic
 }
 
 /**
+ * 可选服务探测 —— 经 `ctx.get(name)`，不走属性直读。
+ *
+ * 权威依据：DSH guard 的 dynamicCordisContext（node_modules/@deepseek-ai/
+ * dsh-cordis-client-runner/lib/client.js，动态插件的 apply() 收到的白名单 facade）：
+ *   - `ctx.slots` 直读 → readService(prop, true) → 名字不在 declared
+ *     （`new Set(Object.keys(ctx.fiber.inject))`）就 denyRead **抛错**；
+ *   - `Reflect.has(ctx, 'slots')` → has trap → 只答 `declared.has(prop)`。
+ *     inject 为空时恒 false：不抛，但探测永远失败，四个界面静默不注册（issue #100）；
+ *   - `ctx.get('slots')` → readService(name, false) → **可选查找，不需要 inject 声明**
+ *     （cordis `ReflectService.get` 的 docstring：“Read a service from the store
+ *     without the inject requirement.”）。
+ *
+ * 所以可选服务只能经 ctx.get 取。宿主是普通对象（测试 mock，没有 ctx.get）时
+ * 退化为直读 —— 否则 mock 里的字面量属性读不到。真 guard 下直读会抛，那是要
+ * 避免的路径；mock 退化只为测试可跑，不是给真宿主的第二条路。
+ */
+function optionalService<T>(ctx: object, name: string): T | undefined {
+  const get = (ctx as { get?: (n: string) => unknown }).get
+  if (typeof get === 'function') return get.call(ctx, name) as T | undefined
+  return (ctx as Record<string, unknown>)[name] as T | undefined
+}
+
+/** apply() 只用到的三个日志口 —— 兜底实现要满足的最小面。 */
+type Logger = {
+  info: (...args: unknown[]) => void
+  warn: (...args: unknown[]) => void
+  error: (...args: unknown[]) => void
+}
+
+/**
+ * 取命名 logger —— 比 slots 更靠前的一个坑，不能裸读 `ctx.logger`。
+ *
+ * 为什么不能直接 `ctx.logger('pr-genius')`：`logger` **不在** guard 的
+ * `CTX_VERBS` 白名单里（client.js / upstream guard.ts 两处都是 effect/on/once/
+ * provide/timer 系，均无 logger；upstream guard.ts 全文 0 次提到 logger），而
+ * facade 的 proxy target 是空对象。于是 `ctx.logger` 落到 `readService(prop, true)`
+ * → 不在 declared → `denyRead` **抛错**。那是 apply() 的第一行，抛在这儿连
+ * `ctx.get` 的探测都跑不到 —— issue #100 的修法会被它抵消。
+ *
+ * 也不能改走 `ctx.get('logger')` 或 `inject: ['logger']`：`LoggerService` 不
+ * `extends Service`、不调 `provide()`（cordis `lib/index.js` 的 Context 构造器里
+ * `this.logger = new LoggerService(self)` 只是属性赋值），所以它**不在 service
+ * store** 里。`ctx.get` 恒 undefined；写进 inject 更糟 —— `_checkImpl` 查不到
+ * impl 就 `delete this._store[name]`，`_refresh` 判 INACTIVE，fiber **永久挂起**，
+ * 插件永不加载。
+ *
+ * 分流靠 `Reflect.has(ctx, 'logger')`，它在两种宿主下都是安全的：
+ *   - 普通 cordis Context：`logger` 是自有属性 → has 为 true → 可直读；
+ *   - guard facade：has 陷阱答 `declared.has(prop)` → false，**且不抛**。
+ * 所以 true 才读，false 就降级到 console 兜底 —— 日志缺失绝不让 apply() 崩掉。
+ */
+function resolveLogger(ctx: object, name: string): Logger {
+  // 普通 cordis Context：logger 是 Context 的自有属性，可安全直读。
+  if (Reflect.has(ctx, 'logger')) {
+    const maybe = (ctx as { logger?: (n: string) => Logger }).logger
+    if (typeof maybe === 'function') return maybe.call(ctx, name)
+  }
+  // 宿主若把 logger 注册成服务（可选，当前上游没有），ctx.get 能拿到。
+  const viaGet = optionalService<unknown>(ctx, 'logger')
+  if (typeof viaGet === 'function') return (viaGet as (n: string) => Logger).call(ctx, name)
+  // DSH guard facade 上 logger 取不到 —— 用 console 兜底，不空转、更不抛。
+  const tag = `[${name}]`
+  return {
+    info: (...args: unknown[]) => console.info(tag, ...args),
+    warn: (...args: unknown[]) => console.warn(tag, ...args),
+    error: (...args: unknown[]) => console.error(tag, ...args),
+  }
+}
+
+/**
  * 插件入口：注册服务 + 挂好清理。返回 void，卸载时由 fiber 自动还原。
  *
  * 配置非法 → 抛 PrGeniusConfigError（字段路径见 message），加载即失败，不带病运行。
@@ -140,7 +215,9 @@ export function createPrGeniusService(deps: PrGeniusServiceDeps): PrGeniusServic
 export function apply(ctx: Context, config: Config): void {
   // 防御性再校验：框架已按 schema 校验过，这里保证直接调用 apply() 时同样响亮。
   const resolved = parseConfig(config)
-  const logger = ctx.logger('pr-genius')
+  // 不裸读 ctx.logger —— guard facade 上 logger 不在 CTX_VERBS，直读会 denyRead 抛错。
+  // 见 resolveLogger 的注释（含为什么 inject/logger 和 ctx.get/logger 都不通）。
+  const logger = resolveLogger(ctx, 'pr-genius')
   const kb = resolveKbRoot(resolved.kbRoot)
   const meta = readPackageMeta(defaultKbRoot())
   const invoker = createMcpInvoker(
@@ -176,16 +253,17 @@ export function apply(ctx: Context, config: Config): void {
 
   const surfaceDisposers: Array<() => void> = []
 
-  // Reflect.has 而不是 `typeof ctx.command === 'function'`：直接读不存在的属性会被
-  // Cordis 的 ReflectService 拦截并抛错，探测也走不到。
-  const commandCtx = ctx as unknown as {
-    command?: (name: string) => {
+  // 可选服务经 ctx.get 探测（见 optionalService 的权威依据）。command 不在 guard
+  // 的 CTX_VERBS 白名单里，真宿主上 ctx.get('command') 也返回 undefined —— 与此前
+  // Reflect.has 恒 false 同效：跳过、warn、不抛。缺服务就是降级，不升级成加载失败。
+  const commandService = optionalService<
+    (name: string) => {
       action?: (fn: () => unknown) => unknown
       option?: unknown
     }
-  }
-  if (Reflect.has(commandCtx, 'command') && typeof commandCtx.command === 'function') {
-    const cmd = commandCtx.command(SURFACE_IDS.command)
+  >(ctx, 'command')
+  if (typeof commandService === 'function') {
+    const cmd = commandService(SURFACE_IDS.command)
     cmd.action?.(() => {
       // 快查弹窗：不离开聊天就得到「能不能提 PR」的结论 + 阻塞项。
       // 分析逻辑在 Python 侧（coach_pr），TS 只透传 —— 见架构约束注释。
@@ -203,17 +281,13 @@ export function apply(ctx: Context, config: Config): void {
     logger.warn('ctx.command unavailable — slash surface not registered')
   }
 
-  const slotsCtx = ctx as unknown as {
-    slots?: {
-      inject?: (slot: string, factory: () => unknown) => () => void
-      register?: (def: unknown, component: unknown) => () => void
-    }
-  }
-  if (
-    Reflect.has(slotsCtx, 'slots') &&
-    slotsCtx.slots?.inject &&
-    slotsCtx.slots?.register
-  ) {
+  // ctx.get('slots') 拿到的可能是 guardedSlots 代理（真宿主），.inject/.register
+  // 仍可调用（guard 只做转发 + 记账，见 client.js 的 guardedSlots）。
+  const slotsService = optionalService<{
+    inject?: (slot: string, factory: () => unknown) => () => void
+    register?: (def: unknown, component: unknown) => () => void
+  }>(ctx, 'slots')
+  if (slotsService?.inject && slotsService?.register) {
     // 运行时探测：候选落点里挑宿主真的提供的那个。
     // 不静态硬编码争议 key —— pinned SDK 与 upstream 的 catalog 不一致
     // （42 vs 92 keys，右栏落点分别是 details / sidebar.right.pane.tab），
@@ -233,8 +307,8 @@ export function apply(ctx: Context, config: Config): void {
             logger.warn('surface %s: no verified contract for slot %s; skipping', surface.id, key)
             continue
           }
-          const dispose = slotsCtx.slots!.inject!(key, () =>
-            slotsCtx.slots!.register!(def, COMPONENTS[surface.id] ?? null))
+          const dispose = slotsService.inject(key, () =>
+            slotsService.register!(def, COMPONENTS[surface.id] ?? null))
           surfaceDisposers.push(dispose)
           logger.info('surface registered: %s -> %s', surface.id, key)
           registered = true

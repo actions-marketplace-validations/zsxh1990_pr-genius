@@ -25,7 +25,7 @@ evidence_urls:
   - https://api.github.com/repos/astral-sh/uv/issues/19685/comments
   - https://api.github.com/repos/astral-sh/uv/pulls/19685/reviews
   - https://api.github.com/repos/astral-sh/uv/pulls/19685/commits
-confidence: medium  # case frontmatter `status: merged / merged_at: 2026-06-05` 与 API 实测 `state=closed, merged=False, closed_at=2026-06-05T14:43:54Z` 不一致；known-issue G (新增)
+confidence: medium  # case body originally wrote 'merged' but GH API shows `state=closed, merged=False, closed_at=2026-06-05T14:43:54Z`. PR was closed without merge; status now corrected to closed-not-merged (known-issue G, FIXED v0.7.3).
 rounds:
   - round: 1
     action: open
@@ -74,7 +74,7 @@ links:
 # uv PR #19685: uv audit: SARIF output
 
 > zsxh1990 在 [astral-sh/uv#19685](https://github.com/astral-sh/uv/pull/19685) 的 SARIF output PR 案例深读。  
-> **结果**：✅ merged（2026-06-05）  
+> **结果**：closed-not-merged（2026-06-05，GH API 实测 `state=closed, merged=False`）  
 > **关键教训**：woodruffw 的反馈定义了 uv 仓的 PR 流程守则。
 
 ---

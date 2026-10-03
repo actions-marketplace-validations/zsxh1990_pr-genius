@@ -4,6 +4,15 @@ type: Documentation
 
 # Changelog
 
+> **⚠️ Historical copy — not the live changelog.** This file stopped at
+> `[1.7.1]` (2026-08-23). From 2.x onward the project keeps **one** changelog
+> at the repository root: [`../CHANGELOG.md`](../CHANGELOG.md), which covers the
+> Python package (`prgenius-core`), the npm/DSH plugin (`pr-genius`) and the
+> GitHub Action alike. Entries below are left untouched as the record of what
+> landed before that merge; they are not wrong, just not continued here.
+>
+> New entries go to `../CHANGELOG.md` only. Do not append below this line.
+
 All notable changes to PR Genius will be documented in this file.
 
 Format based on [Keep a Changelog](https://keepachlang.com/en/1.1.0/).

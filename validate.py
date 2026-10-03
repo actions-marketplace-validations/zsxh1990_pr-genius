@@ -13,6 +13,8 @@
 
 from __future__ import annotations
 
+import datetime as dt
+import json
 import os
 import re
 import sys
@@ -21,8 +23,9 @@ from pathlib import Path
 try:
     import yaml
 except ImportError:
-    print("ERROR: 需要 PyYAML (pip install pyyaml)")
-    sys.exit(2)
+    # issue #65: PyYAML 可选。缺失时不再 exit 2, 而是走 stdlib 降级解析器
+    # (_yaml_lite_load), 让 validate.py 在干净机器上也能跑出结果。
+    yaml = None
 
 
 ROOT = Path(__file__).parent.resolve()
@@ -30,8 +33,463 @@ errors: list[str] = []
 warnings: list[str] = []
 
 
+# ---- PyYAML 不可用时的 stdlib 降级解析器 (issue #65) --------------------
+# 只覆盖 OKF frontmatter 实际用到的 YAML 子集: 标量 / 引号串 / flow 序列与
+# 映射 / 块序列 / 嵌套映射 / 块标量 / 行内注释。无法忠实解析的结构抛
+# ValueError — 由 parse_frontmatter 转成 {"_error": ...} 走正常报错路径,
+# 不猜结果也不假装成功 (lesson: frontmatter-parsing-edge-cases)。
+
+
+class _YamlLiteError(ValueError):
+    """降级解析器无法忠实解析该 YAML 子集。"""
+
+
+def _strip_yaml_comment(line: str) -> str:
+    """去掉行内注释: 引号外、行首或空白后的 `#` 起注释。
+
+    整行 split('#') 会把 "0.15  # 说明" 截成 "0.15", 也会把
+    source_pr: "x#123" 截错 — 所以必须跳过引号内的 #。
+    """
+    in_s = in_d = False
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if in_s:
+            if ch == "'":
+                if i + 1 < len(line) and line[i + 1] == "'":
+                    i += 2
+                    continue  # '' 是单引号串里的转义引号
+                in_s = False
+        elif in_d:
+            if ch == "\\" and i + 1 < len(line):
+                i += 2
+                continue
+            if ch == '"':
+                in_d = False
+        else:
+            if ch == "'":
+                in_s = True
+            elif ch == '"':
+                in_d = True
+            elif ch == "#" and (i == 0 or line[i - 1] in " \t"):
+                return line[:i].rstrip()
+        i += 1
+    return line
+
+
+_TS_RE = re.compile(
+    r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})"
+    r"(?:(?:[Tt]|[ \t]+)(?P<hour>\d{2}):(?P<minute>\d{2}):(?P<second>\d{2})"
+    r"(?P<fraction>\.\d*)?(?:[ \t]*(?P<tz>Z|[-+]\d{2}(?::?\d{2})?))?)?$"
+)
+_BLOCK_SCALAR_RE = re.compile(r"^[|>][+-]?\d*$")
+
+
+def _parse_scalar_lite(s: str):
+    """标量解析: 对齐 PyYAML 的 bool/int/float/null/timestamp 解析。"""
+    s = s.strip()
+    if s == "" or s in ("~", "null", "Null", "NULL"):
+        return None
+    # PyYAML 走 YAML 1.1: yes/no/on/off 也是 bool
+    if s in ("true", "True", "TRUE", "yes", "Yes", "YES", "on", "On", "ON"):
+        return True
+    if s in ("false", "False", "FALSE", "no", "No", "NO", "off", "Off", "OFF"):
+        return False
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in "'\"":
+        return _unquote_lite(s)
+    if s.startswith("["):
+        return _parse_flow_seq(s)
+    if s.startswith("{"):
+        return _parse_flow_map(s)
+    if s.startswith(("|", ">")):
+        # 块标量指示符必须在映射值分支消费; 走到这里 = 结构不对
+        raise _YamlLiteError(f"unexpected block-scalar indicator: {s[:20]!r}")
+    if s[0] in "'\"" and not (len(s) >= 2 and s[0] == s[-1]):
+        # 引号未闭合 = 多行引号串, 本子集不支持 (报错, 不猜)
+        raise _YamlLiteError(f"unterminated quoted scalar: {s[:30]!r}")
+    m = _TS_RE.match(s)
+    if m:
+        # 与 PyYAML 一致: 纯日期 → date, 带时间 → datetime
+        # (verified_at 的 isinstance(str) 判定两边才一致)
+        if m.group("hour") is None:
+            return dt.date(int(m.group("year")), int(m.group("month")), int(m.group("day")))
+        frac = m.group("fraction") or ""
+        micro = int((frac[1:] + "000000")[:6]) if frac else 0
+        base = dt.datetime(
+            int(m.group("year")), int(m.group("month")), int(m.group("day")),
+            int(m.group("hour")), int(m.group("minute")), int(m.group("second")), micro,
+        )
+        tz = m.group("tz")
+        if tz == "Z":
+            return base.replace(tzinfo=dt.timezone.utc)
+        if tz:
+            sign = 1 if tz[0] == "+" else -1
+            tz = tz[1:].replace(":", "")
+            delta = dt.timedelta(hours=int(tz[:2]), minutes=int(tz[2:] or 0))
+            return base.replace(tzinfo=dt.timezone(sign * delta))
+        return base
+    if re.fullmatch(r"[-+]?\d+", s):
+        return int(s)
+    if s in (".inf", ".Inf", ".INF"):
+        return float("inf")
+    if s in ("-.inf", "-.Inf", "-.INF"):
+        return float("-inf")
+    if re.fullmatch(r"[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?", s):
+        return float(s)
+    return s
+
+
+def _unquote_lite(s: str) -> str:
+    quote = s[0]
+    inner = s[1:-1]
+    if quote == "'":
+        return inner.replace("''", "'")
+    # 双引号: 走 JSON 转义规则 (与 YAML double-quoted 基本一致)
+    try:
+        return json.loads(s)
+    except ValueError:
+        return inner.replace('\\"', '"').replace("\\\\", "\\")
+
+
+def _split_flow_items(s: str) -> list[str]:
+    """按顶层逗号切 flow 集合元素 (跳过引号/嵌套括号)。空元素保留 = null。"""
+    items, depth, in_s, in_d, start = [], 0, False, False, 0
+    for i, ch in enumerate(s):
+        if in_s:
+            if ch == "'":
+                in_s = False
+        elif in_d:
+            if ch == "\\":
+                continue
+            if ch == '"':
+                in_d = False
+        elif ch == "'":
+            in_s = True
+        elif ch == '"':
+            in_d = True
+        elif ch in "[{":
+            depth += 1
+        elif ch in "]}":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            items.append(s[start:i].strip())
+            start = i + 1
+    items.append(s[start:].strip())
+    return items
+
+
+def _parse_flow_seq(s: str) -> list:
+    if not s.endswith("]"):
+        raise _YamlLiteError(f"unterminated flow sequence: {s[:40]!r}")
+    inner = s[1:-1].strip()
+    if not inner:
+        return []
+    return [_parse_scalar_lite(it) for it in _split_flow_items(inner)]
+
+
+def _parse_flow_map(s: str) -> dict:
+    if not s.endswith("}"):
+        raise _YamlLiteError(f"unterminated flow mapping: {s[:40]!r}")
+    inner = s[1:-1].strip()
+    if not inner:
+        return {}
+    result = {}
+    for it in _split_flow_items(inner):
+        key, sep, val = it.partition(":")
+        if not sep:
+            raise _YamlLiteError(f"flow mapping entry missing ':': {it!r}")
+        result[_parse_scalar_lite(key)] = _parse_scalar_lite(val)
+    return result
+
+
+def _indent_of(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def _split_key(content: str, lineno: int) -> tuple[str, str]:
+    """拆 `key: rest`; key 可为引号串。返回 (key, rest)。"""
+    if content.startswith(("'", '"')):
+        quote = content[0]
+        i = 1
+        while i < len(content):
+            if content[i] == quote:
+                if quote == "'" and i + 1 < len(content) and content[i + 1] == "'":
+                    i += 2
+                    continue
+                break
+            if quote == '"' and content[i] == "\\":
+                i += 2
+                continue
+            i += 1
+        else:
+            raise _YamlLiteError(f"line {lineno}: unterminated quoted key")
+        if i + 1 >= len(content) or content[i + 1] != ":":
+            raise _YamlLiteError(f"line {lineno}: expected ':' after key {content[:20]!r}")
+        key = _unquote_lite(content[: i + 1])
+        rest = content[i + 2 :]
+    else:
+        # plain key: 第一个冒号后必须是空白或行尾 (否则是 "https://..." 这类值)
+        m = re.match(r"^([^:#\s][^:]*?)\s*:(\s+|$)", content)
+        if not m:
+            raise _YamlLiteError(f"line {lineno}: not a mapping entry: {content[:40]!r}")
+        key = m.group(1).strip()
+        rest = content[m.end(1) + 1 :]  # 跳过冒号
+    if key == "":
+        raise _YamlLiteError(f"line {lineno}: empty key")
+    return key, rest.strip()
+
+
+def _is_key_line(content: str) -> bool:
+    """判断一行是否形如 `key: ...` / `key:` (供序列项 `- key: val` 判定)。"""
+    try:
+        _split_key(content, 0)
+        return True
+    except _YamlLiteError:
+        return False
+
+
+def _parse_block_scalar(
+    lines: list[str], i: int, indicator: str, key_indent: int
+) -> tuple[str, int]:
+    """解析 `|`/`>` 块标量, 返回 (value, next_i)。i 指向 header 的下一行。"""
+    style = indicator[0]
+    chomp = ""
+    for ch in indicator[1:]:
+        if ch in "+-":
+            chomp = ch
+        # 其余是显式缩进数字, 这里按首行缩进推断, 不用它
+    block: list[str] = []
+    j = i
+    content_indent = None
+    while j < len(lines):
+        raw = lines[j]
+        if raw.strip() == "":
+            block.append("")
+            j += 1
+            continue
+        ind = _indent_of(raw)
+        if ind <= key_indent:
+            break
+        if content_indent is None:
+            content_indent = ind
+        block.append(raw[content_indent:] if len(raw) > content_indent else "")
+        j += 1
+    while block and block[-1] == "":
+        block.pop()
+    if style == ">":
+        # folded: 非缩进行折成空格 (frontmatter 少用, 能解析就别报错)
+        folded: list[str] = []
+        for ln in block:
+            if folded and ln and not ln[0].isspace() and folded[-1]:
+                folded[-1] += " " + ln
+            else:
+                folded.append(ln)
+        value = "\n".join(folded)
+    else:
+        value = "\n".join(block)
+    if chomp == "-":
+        return value, j
+    if chomp == "+":
+        return value + "\n", j
+    return value + ("\n" if value else ""), j
+
+
+def _next_content(lines: list[str], i: int) -> int:
+    """跳过空行/纯注释行, 返回下一个内容行下标。"""
+    while i < len(lines):
+        stripped = _strip_yaml_comment(lines[i]).strip()
+        if stripped:
+            return i
+        i += 1
+    return i
+
+
+def _fold_plain_continuation(lines: list[str], i: int, parent_indent: int, value):
+    """收集多行 plain 标量的续行并按 YAML fold 语义折回 (issue #65)。
+
+    PyYAML 对 `key: long text` 后面更深缩进的续行按空格折行、空行变 \\n。
+    续行若长得像 key 或序列项就停下 — 那不是标量的一部分。
+    """
+    if not isinstance(value, str) or value == "":
+        return value, i
+    parts = [value]
+    while i < len(lines):
+        stripped = _strip_yaml_comment(lines[i]).rstrip()
+        if not stripped.strip():
+            # 空行只有在后面还有续行时才属于标量
+            j = i
+            while j < len(lines) and not _strip_yaml_comment(lines[j]).strip():
+                j += 1
+            if j >= len(lines):
+                break
+            nxt = _strip_yaml_comment(lines[j]).rstrip()
+            n_content = nxt.strip()
+            if (
+                _indent_of(nxt) <= parent_indent
+                or n_content == "-"
+                or n_content.startswith("- ")
+                or _is_key_line(n_content)
+            ):
+                break
+            parts.append("")
+            i += 1
+            continue
+        ind = _indent_of(stripped)
+        if ind <= parent_indent:
+            break
+        content = stripped.strip()
+        if content == "-" or content.startswith("- ") or _is_key_line(content):
+            break
+        parts.append(content)
+        i += 1
+    if len(parts) == 1:
+        return value, i
+    out = parts[0]
+    prev_blank = False
+    for p in parts[1:]:
+        if p == "":
+            out += "\n"
+            prev_blank = True
+        elif prev_blank:
+            out += p
+            prev_blank = False
+        else:
+            out += " " + p
+    return out, i
+
+
+def _parse_value_block(lines: list[str], i: int, key_indent: int):
+    """解析 `key:` 空值后的嵌套块。
+
+    嵌套映射要比 key 缩进更深; 序列可以与 key 同缩进 (indentless
+    sequence — 本仓 evidence_urls/tags 就是这种写法)。
+    """
+    j = _next_content(lines, i)
+    if j >= len(lines):
+        return None, i
+    stripped = _strip_yaml_comment(lines[j]).rstrip()
+    ind = _indent_of(stripped)
+    content = stripped.strip()
+    if ind > key_indent:
+        return _parse_block(lines, j, key_indent + 1)
+    if ind == key_indent and (content == "-" or content.startswith("- ")):
+        return _parse_sequence(lines, j, ind)
+    return None, i
+
+
+def _parse_block(lines: list[str], i: int, min_indent: int):
+    """解析缩进块 (映射或序列), 返回 (value, next_i)。"""
+    j = _next_content(lines, i)
+    if j >= len(lines):
+        return None, j
+    stripped = _strip_yaml_comment(lines[j]).rstrip()
+    ind = _indent_of(stripped)
+    if ind < min_indent:
+        return None, j
+    content = stripped.strip()
+    if content == "-" or content.startswith("- "):
+        return _parse_sequence(lines, j, ind)
+    return _parse_mapping(lines, j, ind)
+
+
+def _parse_mapping(
+    lines: list[str], i: int, key_indent: int, first: tuple[str, int] | None = None
+) -> tuple[dict, int]:
+    """解析映射。first=(content, indent) 用于序列项 `- key: val` 的首行。"""
+    result: dict = {}
+    pending_first = first
+    while i < len(lines) or pending_first is not None:
+        if pending_first is not None:
+            content, ind = pending_first
+            pending_first = None
+            i += 1  # 消费 `- key: val` 的 dash 行, 后续逻辑与普通 key 行一致
+        else:
+            raw = lines[i]
+            stripped = _strip_yaml_comment(raw).rstrip()
+            if not stripped.strip():
+                i += 1
+                continue
+            ind = _indent_of(stripped)
+            if ind < key_indent:
+                break
+            if ind > key_indent:
+                raise _YamlLiteError(f"line {i + 1}: unexpected indent")
+            content = stripped.strip()
+            if content == "-" or content.startswith("- "):
+                raise _YamlLiteError(f"line {i + 1}: sequence item inside mapping")
+            i += 1
+        key, rest = _split_key(content, i)
+        if _BLOCK_SCALAR_RE.match(rest or ""):
+            result[key], i = _parse_block_scalar(lines, i, rest, ind)
+        elif rest == "":
+            result[key], i = _parse_value_block(lines, i, ind)
+        else:
+            value = _parse_scalar_lite(rest)
+            # 只有 plain 标量才折续行; 引号串/flow 后面跟内容 = 解析错误
+            if rest[:1] not in ("'", '"', "[", "{"):
+                value, i = _fold_plain_continuation(lines, i, ind, value)
+            result[key] = value
+    return result, i
+
+
+def _parse_sequence(lines: list[str], i: int, seq_indent: int) -> tuple[list, int]:
+    result: list = []
+    while i < len(lines):
+        raw = lines[i]
+        stripped = _strip_yaml_comment(raw).rstrip()
+        if not stripped.strip():
+            i += 1
+            continue
+        ind = _indent_of(stripped)
+        if ind < seq_indent:
+            break
+        if ind > seq_indent:
+            raise _YamlLiteError(f"line {i + 1}: unexpected indent in sequence")
+        content = stripped.strip()
+        if not (content == "-" or content.startswith("- ")):
+            break
+        item_src = stripped[seq_indent + 1 :]  # dash 后的剩余部分
+        lead = len(item_src) - len(item_src.lstrip(" "))
+        item_indent = seq_indent + 1 + lead
+        item_text = item_src.lstrip(" ")
+        if item_text == "":
+            # 裸 `-` 项: 嵌套块必须比序列缩进更深 (同缩进的下一个 `-` 是兄弟项)
+            value, i = _parse_block(lines, i + 1, seq_indent + 1)
+            result.append(value)
+        elif _is_key_line(item_text):
+            # `- key: val` = 映射项: 首行 key 在 item_indent 列
+            value, i = _parse_mapping(lines, i, item_indent, first=(item_text, item_indent))
+            result.append(value)
+        elif item_text == "-" or item_text.startswith("- "):
+            # 序列里直接嵌序列 (罕见), 不猜折叠方式 — 按解析失败报错
+            raise _YamlLiteError(f"line {i + 1}: nested inline sequence not supported")
+        else:
+            value = _parse_scalar_lite(item_text)
+            i += 1
+            if item_text[:1] not in ("'", '"', "[", "{"):
+                value, i = _fold_plain_continuation(lines, i, seq_indent, value)
+            result.append(value)
+    return result, i
+
+
+def _yaml_lite_load(text: str):
+    """stdlib 降级 YAML 子集解析器 (PyYAML 不可用时的 issue #65 兜底)。"""
+    if not text.strip():
+        return None  # 与 yaml.safe_load("") 一致
+    lines = text.splitlines()
+    value, _ = _parse_block(lines, 0, 0)
+    if not isinstance(value, dict):
+        raise _YamlLiteError("frontmatter must be a mapping")
+    return value
+
+
 def parse_frontmatter(text: str) -> tuple[dict | None, str]:
-    """Parse YAML frontmatter from markdown text. Return (dict, body)."""
+    """Parse YAML frontmatter from markdown text. Return (dict, body).
+
+    PyYAML 可用时用 safe_load (更正确); 缺失时用 _yaml_lite_load 降级解析。
+    解析失败统一返回 {"_error": ...}, 由 check_frontmatter 按文件报错 —
+    不因缺依赖 exit 2, 也不在解析不动时假装成功 (issue #65)。
+    """
     if not text.startswith("---\n"):
         return None, text
     end = text.find("\n---\n", 4)
@@ -40,8 +498,11 @@ def parse_frontmatter(text: str) -> tuple[dict | None, str]:
     yaml_text = text[4:end]
     body = text[end + 5 :]
     try:
-        return yaml.safe_load(yaml_text), body
-    except yaml.YAMLError as e:
+        if yaml is not None:
+            return yaml.safe_load(yaml_text), body
+        return _yaml_lite_load(yaml_text), body
+    except Exception as e:
+        # yaml.YAMLError / _YamlLiteError 都走同一报告路径
         return {"_error": str(e)}, body
 
 

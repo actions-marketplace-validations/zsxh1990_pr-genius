@@ -2,7 +2,7 @@
 type: Roadmap
 title: pr-genius Metrics Checklist
 description: Concrete tasks to satisfy the 量化指标 克莱恩 listed 2026-07-05 22:15.
-version: 0.7.6
+version: 2.1.5
 created: 2026-07-05
 updated: 2026-07-05
 conforms_to: OKF v0.1

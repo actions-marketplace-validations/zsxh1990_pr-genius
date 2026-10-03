@@ -2,7 +2,7 @@
 type: Schema Reference
 title: prgenius
 description: PR Genius — 提交前改进顾问，stdlib-first CLI + stdio MCP shell
-version: 1.1.1
+version: 2.1.5
 created: 2026-07-04
 updated: 2026-07-09
 author: zsxh1990
@@ -99,14 +99,22 @@ for case in iter_case_studies("path/to/repo_root"):
 
 ## MCP surface (when `mcp` is installed)
 
-6 tools for local agents:
+14 tools for local agents:
 
 - `analyze_pr(title, repo, body, ...)` — 结构化信号 + 建议 + 三档风险
 - `coach_pr(title, repo, body, ...)` — pass/fail + checklist
+- `triage_pr(title, repo, ...)` — 维护者政策检查
 - `get_repo_profile(repo)` — 仓库画像
-- `list_open_prs()` — open PR 列表
+- `list_open_prs()` — 本地 open case-study 列表
 - `get_case_study(repo, pr_number)` — PR 案例
+- `search_patterns(query, ...)` — 反模式/成功模式搜索
 - `schema_info()` — schema 版本
+- `status_prs(author | repo, ...)` — 出向 PR 状态心跳
+- `profile_writeback_suggestions(author, ...)` — 画像回写建议 (dry-run)
+- `maintainer_view(title, repo, ...)` — 维护者侧 5-action 决策
+- `contributor_view(title, repo, ...)` — 贡献者就绪 5-action 决策
+- `review_queue(prs | prs_file, ...)` — 优先级 review 队列
+- `prgenius_doctor()` — 安装/数据/MCP 自检
 
 No network, no auth. Stdio only.
 

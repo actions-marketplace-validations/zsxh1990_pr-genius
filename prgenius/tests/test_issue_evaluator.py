@@ -2104,18 +2104,40 @@ class TestRealIssueValidation:
 # ============================================================
 
 def _fetch_misakanet_issues():
-    """Fetch issues from upstream Ikalus1988/MisakaNet."""
+    """Fetch issues from upstream Ikalus1988/MisakaNet.
+
+    issue #64: gh 不在 PATH / 不可执行 / 鉴权失败时 pytest.skip 而不是 ERROR —
+    整类测试只应因“拿不到数据”而 SKIP, 不该因环境缺 CLI 而全红。
+    """
     import json, subprocess, random
 
-    result = subprocess.run(
-        ["gh", "issue", "list", "--repo", "Ikalus1988/MisakaNet",
-         "--state", "all", "--limit", "200",
-         "--json", "number,title,body,labels,state"],
-        capture_output=True, text=True, timeout=30,
-    )
-    if result.returncode != 0 or not result.stdout.strip():
+    try:
+        result = subprocess.run(
+            ["gh", "issue", "list", "--repo", "Ikalus1988/MisakaNet",
+             "--state", "all", "--limit", "200",
+             "--json", "number,title,body,labels,state"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except FileNotFoundError:
+        pytest.skip("gh CLI not available")
+    except PermissionError:
+        pytest.skip("gh CLI not executable (permission denied)")
+    except subprocess.TimeoutExpired:
+        pytest.skip("gh CLI timed out")
+    except OSError as e:
+        pytest.skip(f"gh CLI unusable: {e}")
+
+    if result.returncode != 0:
+        # 非零退出 = 鉴权/权限/网络问题 (gh not logged in, bad credentials, …)
+        err_lines = (result.stderr or "").strip().splitlines()
+        detail = err_lines[-1] if err_lines else f"exit code {result.returncode}"
+        pytest.skip(f"gh CLI failed (auth/permission?): {detail}")
+    if not result.stdout.strip():
         return []
-    all_issues = json.loads(result.stdout)
+    try:
+        all_issues = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        pytest.skip(f"gh returned non-JSON output: {e}")
 
     # 20% stratified sample
     random.seed(42)
@@ -2175,5 +2197,36 @@ class TestMisakaNetSample:
         assert ratio >= 0.7, f"Only {ratio:.0%} are A/B (need >= 70%)"
 
     def test_crawler_friendly_count(self, misakanet_results):
-        """Some MisakaNet issues have crawler labels — should detect them."""
-        assert misakanet_results["crawler_friendly_count"] >= 1
+        """Crawler-label detection runs and counts consistently on a live sample.
+
+        这个用例原先写的是 `crawler_friendly_count >= 1`，那是对**语料属性**的断言，
+        不是对代码的断言：它把「检测器能工作」和「线上恰好有带标签的样本」绑在一起。
+        2026-10-04 实测 Ikalus1988/MisakaNet 前 40 个 issue 的标签是 intake /
+        mcp-intake / needs-human-review / … —— CRAWLER_LABELS 那 8 个一个都不在，
+        所以 >=1 恒假，红的是数据不是代码。
+        分成两条：这里只断言检测器输出自洽；「真能识别」用受控输入在
+        test_crawler_label_detection 下面验，与线上语料无关。
+        """
+        total = misakanet_results["total"]
+        counted = misakanet_results["crawler_friendly_count"]
+        assert isinstance(counted, int), f"crawler_friendly_count must be int, got {type(counted)}"
+        assert 0 <= counted <= total, f"crawler_friendly_count {counted} outside [0, {total}]"
+
+    def test_crawler_label_detection(self):
+        """受控输入证明检测器真能识别爬虫标签（不依赖线上语料里有没有样本）。"""
+        from prgenius.issue_evaluator import CRAWLER_LABELS, DEFAULT_CRAWLER_THRESHOLD
+
+        labels_hit = set(CRAWLER_LABELS)
+        assert len(labels_hit) >= DEFAULT_CRAWLER_THRESHOLD, (
+            "CRAWLER_LABELS must offer at least as many labels as the threshold "
+            f"({DEFAULT_CRAWLER_THRESHOLD}), otherwise nothing can ever be crawler-friendly"
+        )
+        # 单条 issue 的标签若达到阈值，判 is_crawler_friendly
+        fake = [{"number": 1, "title": "x", "body": "", "labels": sorted(labels_hit)[:DEFAULT_CRAWLER_THRESHOLD]}]
+        result = analyze_issues_batch(fake)
+        assert result["crawler_friendly_count"] == 1, (
+            f"detector missed a fully-labelled issue: {result['crawler_friendly_count']}"
+        )
+        # 标签不足阈值则不判
+        bare = [{"number": 2, "title": "y", "body": "", "labels": []}]
+        assert analyze_issues_batch(bare)["crawler_friendly_count"] == 0
