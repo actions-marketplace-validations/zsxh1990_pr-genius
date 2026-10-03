@@ -6,6 +6,58 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.1.2] - 2026-10-03
+
+> **Cut because 2.1.1 repeated the exact mistake 2.1.0 made.** The slot-key fix
+> in 2.1.1 landed in a module `apply()` never reads, so the shipped bundle still
+> injected invented slot names. Verified against a simulated DSH host this time,
+> not against a grep.
+
+### Fixed
+- **`apply()` now registers into slots that actually exist.** 2.1.1 fixed the
+  keys in `src/client/slots.ts` and left `src/index.ts` importing
+  `src/ui/surfaces.ts`, whose `SURFACE_PLAN` is the table `apply()` reads. That
+  table still said `ui-sidebar` / `ui-settings-plugins` — names I inferred from
+  tutorial prose, neither in the shipped catalog. The bundle carried both sets
+  and the runtime used the wrong one; `client/slots.ts` was dead code. (issue #95)
+
+### Changed
+- `SETTINGS_SURFACES` in `src/ui/surfaces.ts` is the single source for every
+  placement — `sidebar.footer.action` (root list), `conversation.view` (session),
+  `sidebar.right.pane.tab` (session). `client/slots.ts` derives from it rather
+  than declaring its own copies; two tables for one fact is what let them drift.
+- The invented names are gone from comments too, so a grep finds nothing rather
+  than the paragraph where I explained they were wrong.
+
+### Verified
+
+Simulated a DSH host that only accepts keys in the real catalog, called
+`apply()`, and looked at what landed:
+
+```
+sidebar.footer.action   -> pr-genius.dashboard     component=REAL
+conversation.view       -> pr-genius.advisor-tab   component=REAL
+sidebar.right.pane.tab  -> pr-genius.advisor-panel component=REAL
+sidebar.footer.action   -> pr-genius.preferences   component=REAL
+SKIPPED (not in DSH catalog): none
+```
+
+Stale keys in `dist`: **0**. `tsc` 0, `vitest` 34 passed, `validate --strict` 0.
+
+### The pattern, recorded so it stops recurring
+
+Three releases, one shape:
+
+| | changed | verified | user hit |
+|---|---|---|---|
+| #89 | `parse_frontmatter` | called `parse_frontmatter` | `load_anti_patterns` → `_parse_simple_frontmatter` |
+| #90 | `src/client/*` | `tsc` + `grep dist` | entry never imported it |
+| #95 | `src/client/slots.ts` | `grep dist` found the keys | `apply()` read the other table |
+
+"Exists in the artefact" is not "fixed on the path a user takes." The runtime
+simulation above is the check that would have caught all three.
+
+
 ## [2.1.1] - 2026-10-03
 
 > **This release exists to make two v2.1.0 claims true.** Both were wrong as
