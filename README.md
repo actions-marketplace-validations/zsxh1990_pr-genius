@@ -13,6 +13,9 @@ mcp-name: io.github.zsxh1990/pr-genius
 # PR Genius — The advisor that knows which PRs get closed
 
 > **943 loaded patterns across 67 repos.**
+> (Trigger coverage — how often rules fire on real PRs — is measured separately by
+> `scripts/measure_pattern_coverage.py`, issue #66. There is no "quality pass rate"
+> claim here: it is not measurable for the current set, so it is not asserted.)
 > Clone → paste MCP config → ask "Should I open this PR to encode/httpx?"
 
 [![CI](https://github.com/zsxh1990/pr-genius/actions/workflows/validate.yml/badge.svg)](https://github.com/zsxh1990/pr-genius/actions/workflows/validate.yml)
@@ -39,7 +42,7 @@ PR Genius is also a **DSH (Cordis) plugin** that slots into the DeepSeek Harness
 | Status classification | ❌ | ✅ (9 states) |
 | Stale detection | ❌ | ✅ |
 | Action suggestions | ❌ | ✅ |
-| Repo-specific policy | ❌ | ✅ |
+| Common OSS PR policy | ❌ | ✅ |
 | Snapshot & transitions | ❌ | ✅ |
 
 **Status heartbeat** runs daily via cron, auto-detecting:
@@ -59,7 +62,7 @@ PR Genius is also a **DSH (Cordis) plugin** that slots into the DeepSeek Harness
 | Knowledge source | Training data | Real-time scrape | 943 structured patterns |
 | Repo understanding | Generic | Surface data (stars) | 17-field agent_guidelines |
 | Failure patterns | Unknown | Unknown | 251 anti-patterns |
-| Success patterns | Unknown | Unknown | 692 success patterns |
+| Success patterns | Unknown | Unknown | 692 patterns — retrieval/reference only, not wired into scoring (issue #69) |
 | Maintainer preference | Guess | Recent PRs | Structured policy files |
 | Merge probability | Can't estimate | Can't estimate | Based on repo merge rate + signals |
 
@@ -214,7 +217,7 @@ updates:
 
 Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.1`
 
-### 13 MCP Tools
+### 14 MCP Tools
 
 | Tool | Purpose | Required Args |
 |------|---------|---------------|
