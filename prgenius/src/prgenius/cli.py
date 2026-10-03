@@ -70,6 +70,11 @@ def cmd_analyze(args) -> int:
     print(f"## PR 分析: {result['repo']}\n")
     print(f"**{icon} 综合评估: {label}** ({len(signals['positive'])} 正面 / {len(signals['negative'])} 负面)\n")
 
+    # issue #68: 合并概率降级时必须标注 (estimate), 不给看似实测的数字
+    if "merge_probability" in result:
+        estimate_mark = " (estimate)" if result.get("merge_probability_degraded") else ""
+        print(f"合并概率: {result['merge_probability']:.0%}{estimate_mark}\n")
+
     # 负面信号
     if signals["negative"]:
         print("### ⚠️ 需要改进\n")

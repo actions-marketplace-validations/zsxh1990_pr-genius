@@ -24,6 +24,20 @@ from .utils import get_repo_root
 REPO_ROOT_DEFAULT = get_repo_root()
 
 
+def _profile_merge_rate(gl: dict) -> float:
+    """从 profile 的 agent_guidelines 取数值合并率 (issue #68)。
+
+    profiles 里 `external_merge_rate` 是数字, `external_merge_rate_30` 常是
+    URL 字符串 — 只认真正的数值, 数字键优先, 避免把 URL 当合并率传下去。
+    """
+    from .evaluator import coerce_merge_rate
+    for key in ("external_merge_rate", "external_merge_rate_30", "merge_rate"):
+        rate = coerce_merge_rate(gl.get(key, 0.0))
+        if rate > 0:
+            return rate
+    return 0.0
+
+
 def _load_tools(repo_root: Path | None = None):
     from mcp.server.fastmcp import FastMCP
     from .parser import iter_case_studies, profile_get, schema_info as _schema_info
@@ -92,7 +106,7 @@ def _load_tools(repo_root: Path | None = None):
                 if star_count == 0:
                     star_count = fm.get("star", 0)
                 if repo_merge_rate == 0.0:
-                    repo_merge_rate = gl.get("external_merge_rate_30", gl.get("external_merge_rate", 0.0))
+                    repo_merge_rate = _profile_merge_rate(gl)
 
         return _analyze_pr(
             title, description, repo, rr,
@@ -145,7 +159,7 @@ def _load_tools(repo_root: Path | None = None):
                 if star_count == 0:
                     star_count = fm.get("star", 0)
                 if repo_merge_rate == 0.0:
-                    repo_merge_rate = gl.get("external_merge_rate_30", gl.get("external_merge_rate", 0.0))
+                    repo_merge_rate = _profile_merge_rate(gl)
 
         result = _analyze_pr(
             title, description, repo, rr,

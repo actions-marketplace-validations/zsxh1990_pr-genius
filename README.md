@@ -13,6 +13,7 @@ mcp-name: io.github.zsxh1990/pr-genius
 # PR Genius — The advisor that knows which PRs get closed
 
 > **1355 loaded patterns across 61 repos. 100% quality pass rate.**
+> (That pass rate grades file writing quality, not how often rules fire on real PRs — trigger coverage is measured by `scripts/measure_pattern_coverage.py`, issue #66.)
 > Clone → paste MCP config → ask "Should I open this PR to encode/httpx?"
 
 [![CI](https://github.com/zsxh1990/pr-genius/actions/workflows/validate.yml/badge.svg)](https://github.com/zsxh1990/pr-genius/actions/workflows/validate.yml)
@@ -36,7 +37,7 @@ PR Genius is **not** a PR dashboard. It's an **Outbound PR CRM** for professiona
 | Status classification | ❌ | ✅ (9 states) |
 | Stale detection | ❌ | ✅ |
 | Action suggestions | ❌ | ✅ |
-| Repo-specific policy | ❌ | ✅ |
+| Common OSS PR policy | ❌ | ✅ |
 | Snapshot & transitions | ❌ | ✅ |
 
 **Status heartbeat** runs daily via cron, auto-detecting:
@@ -56,7 +57,7 @@ PR Genius is **not** a PR dashboard. It's an **Outbound PR CRM** for professiona
 | Knowledge source | Training data | Real-time scrape | 1355 structured patterns |
 | Repo understanding | Generic | Surface data (stars) | 17-field agent_guidelines |
 | Failure patterns | Unknown | Unknown | 752 anti-patterns |
-| Success patterns | Unknown | Unknown | 703 success patterns |
+| Success patterns | Unknown | Unknown | 692 patterns — retrieval/reference only, not wired into scoring (issue #69) |
 | Maintainer preference | Guess | Recent PRs | Structured policy files |
 | Merge probability | Can't estimate | Can't estimate | Based on repo merge rate + signals |
 
