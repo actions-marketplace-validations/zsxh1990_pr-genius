@@ -1,16 +1,17 @@
 """stdio MCP shell for prgenius — v1.4.1
 
-MCP surface (10 tools, all read-only / non-destructive / idempotent):
-- analyze_pr(title, repo, body, ...) → 结构化信号 + 建议 + 三档风险
-- coach_pr(title, repo, body, ...) → pass/fail + checklist
-- triage_pr(title, repo, body, diff_stat, labels) → verdict + violations + recommended_action
+MCP surface (13 tools, all read-only / non-destructive / idempotent):
+- analyze_pr(title, repo, body, ..., diff_stat) → 结构化信号 + 建议 + 三档风险
+- coach_pr(title, repo, body, ..., diff_stat) → pass/fail + checklist
+- triage_pr(title, repo, body, diff_stat, labels) → verdict + violations + fallback_signals
 - get_repo_profile(repo) → 仓库画像
-- list_open_prs() → open PR 列表
+- list_open_prs(repo, author) → 本地 case-study 记录 (不是 GitHub 实时 PR; 实时的用 status_prs)
 - get_case_study(repo, pr_number) → PR 案例
 - search_patterns(query, type, limit) → 按关键词搜 anti-patterns + success-patterns
 - schema_info() → schema 版本
 - status_prs(author, repo, stale_days, save_snapshot) → outbound PR health check
 - profile_writeback_suggestions(author, mode) → profile update proposals
+- prgenius_doctor() → 安装/数据/MCP 自检 (issue #70)
 
 All tools follow MCP tool annotations (readOnlyHint=True, destructiveHint=False,
 idempotentHint=True) — pr-genius 是只读 advisor, 不写任何状态.
@@ -22,6 +23,34 @@ from pathlib import Path
 from .utils import get_repo_root
 
 REPO_ROOT_DEFAULT = get_repo_root()
+
+# issue #72: CLI and MCP enforce the same value domains — impossible values
+# must fail loudly before analysis, not produce meaningless output.
+_AUTHOR_ASSOCIATIONS = {"NONE", "CONTRIBUTOR", "COLLABORATOR", "MEMBER", "OWNER"}
+_MERGEABLE_STATES = {"MERGEABLE", "CONFLICTING", "UNKNOWN"}
+
+
+def _validate_pr_args(
+    star_count: int,
+    repo_merge_rate: float,
+    author_association: str,
+    mergeable: str,
+) -> None:
+    """Raise ValueError on impossible argument values (issue #72)."""
+    if not isinstance(star_count, int) or isinstance(star_count, bool) or star_count < 0:
+        raise ValueError(f"star_count must be an integer >= 0, got {star_count!r}")
+    if not isinstance(repo_merge_rate, (int, float)) or isinstance(repo_merge_rate, bool) \
+            or not 0.0 <= float(repo_merge_rate) <= 1.0:
+        raise ValueError(f"repo_merge_rate must be a number in [0.0, 1.0], got {repo_merge_rate!r}")
+    if author_association not in _AUTHOR_ASSOCIATIONS:
+        raise ValueError(
+            f"author_association must be one of {sorted(_AUTHOR_ASSOCIATIONS)}, "
+            f"got {author_association!r}"
+        )
+    if mergeable not in _MERGEABLE_STATES:
+        raise ValueError(
+            f"mergeable must be one of {sorted(_MERGEABLE_STATES)}, got {mergeable!r}"
+        )
 
 
 def _load_tools(repo_root: Path | None = None):
@@ -54,6 +83,8 @@ def _load_tools(repo_root: Path | None = None):
         labels: list[str] | None = None,
         star_count: int = 0,
         repo_merge_rate: float = 0.0,
+        mergeable: str = "MERGEABLE",
+        diff_stat: str = "",
     ) -> dict:
         """Detailed PR analysis with signals and checklist. Use analyze_pr for deep analysis, coach_pr for quick pass/fail.
 
@@ -72,16 +103,22 @@ def _load_tools(repo_root: Path | None = None):
             author: PR author username
             author_association: Author's association with repo (NONE/CONTRIBUTOR/COLLABORATOR/MEMBER/OWNER)
             labels: PR labels (e.g. ["bug", "documentation"])
-            star_count: Repository star count (0 = unknown)
+            star_count: Repository star count (>= 0; 0 = unknown)
             repo_merge_rate: Repository's external PR merge rate 0.0-1.0 (0 = unknown)
+            mergeable: Mergeable state (MERGEABLE/CONFLICTING/UNKNOWN)
+            diff_stat: git diff --stat output — populates impact/review and is
+                the authoritative PR-size signal (null when omitted)
 
         Returns:
-            dict with keys: tier, signals, checklist, recommended_action, repo, title
+            dict with keys: tier, signals, checklist, recommended_action, repo,
+            title, impact, review (impact/review null without diff_stat)
 
         Example:
             analyze_pr("fix: timeout in connection pool", "encode/httpx", "Fixes #123")
             → {"tier": "medium_risk", "signals": {...}, "checklist": [...], "recommended_action": "..."}
         """
+        _validate_pr_args(star_count, repo_merge_rate, author_association, mergeable)
+
         # Auto-read from profile if not provided
         if star_count == 0 or repo_merge_rate == 0.0:
             from .parser import profile_get
@@ -99,6 +136,8 @@ def _load_tools(repo_root: Path | None = None):
             body=body, labels=labels or [], author=author,
             star_count=star_count, repo_merge_rate=repo_merge_rate,
             author_association=author_association,
+            mergeable=mergeable,
+            diff_stat=diff_stat,
         )
 
     @mcp.tool(annotations=READ_ONLY)
@@ -112,6 +151,8 @@ def _load_tools(repo_root: Path | None = None):
         labels: list[str] | None = None,
         star_count: int = 0,
         repo_merge_rate: float = 0.0,
+        mergeable: str = "MERGEABLE",
+        diff_stat: str = "",
     ) -> dict:
         """Agent PR Dojo: quick pass/fail gate. Use coach_pr for go/no-go decision, analyze_pr for detailed analysis.
 
@@ -129,12 +170,16 @@ def _load_tools(repo_root: Path | None = None):
             author: PR author username
             author_association: Author's association (NONE/CONTRIBUTOR/etc.)
             labels: PR labels
-            star_count: Repo star count
+            star_count: Repo star count (>= 0)
             repo_merge_rate: External PR merge rate (0.0-1.0)
+            mergeable: Mergeable state (MERGEABLE/CONFLICTING/UNKNOWN)
+            diff_stat: git diff --stat output (populates impact/review)
 
         Returns:
             dict with pass (bool), tier, signals, checklist, recommended_action
         """
+        _validate_pr_args(star_count, repo_merge_rate, author_association, mergeable)
+
         # Auto-read from profile if not provided
         if star_count == 0 or repo_merge_rate == 0.0:
             from .parser import profile_get
@@ -152,6 +197,8 @@ def _load_tools(repo_root: Path | None = None):
             body=body, labels=labels or [], author=author,
             star_count=star_count, repo_merge_rate=repo_merge_rate,
             author_association=author_association,
+            mergeable=mergeable,
+            diff_stat=diff_stat,
         )
         result["pass"] = result["tier"] != "high_risk"
         return result
@@ -232,25 +279,36 @@ def _load_tools(repo_root: Path | None = None):
         return p["frontmatter"]
 
     @mcp.tool(annotations=READ_ONLY)
-    def list_open_prs() -> list:
-        """List all open PR case studies in the knowledge base.
+    def list_open_prs(repo: str = "", author: str = "") -> list:
+        """List open PR **case-study records** in the local knowledge base (issue #74).
 
-        Returns PRs with final_status=open, useful for tracking ongoing
-        contributions and their current state.
+        NOTE: these are local case-study folders with final_status=open —
+        NOT live GitHub PRs. For live GitHub PR health use `status_prs`.
+
+        Args:
+            repo: filter by target repo (org/name, e.g. "encode/httpx"); "" = all
+            author: filter by PR author username; "" = all
 
         Returns:
-            list of {repo, pr_number, pr_url, folder} for each open PR
+            list of {repo, pr_number, pr_url, author, folder} for each matching
+            open case study
         """
         out = []
         for c in iter_case_studies(rr):
             fm = c["frontmatter"]
-            if fm.get("final_status") == "open":
-                out.append({
-                    "repo": fm.get("repo"),
-                    "pr_number": fm.get("pr_number"),
-                    "pr_url": fm.get("pr_url"),
-                    "folder": c["folder"],
-                })
+            if fm.get("final_status") != "open":
+                continue
+            if repo and (fm.get("repo") or "").strip("/") != repo.strip("/"):
+                continue
+            if author and (fm.get("author") or "").lower() != author.lower():
+                continue
+            out.append({
+                "repo": fm.get("repo"),
+                "pr_number": fm.get("pr_number"),
+                "pr_url": fm.get("pr_url"),
+                "author": fm.get("author"),
+                "folder": c["folder"],
+            })
         return out
 
     @mcp.tool(annotations=READ_ONLY)
@@ -559,6 +617,24 @@ def _load_tools(repo_root: Path | None = None):
             return {"error": "prs must be a list"}
 
         return build_review_queue(prs, repo_root=rr)
+
+    @mcp.tool(annotations=READ_ONLY)
+    def prgenius_doctor() -> dict:
+        """Self-test the pr-genius install (issue #70).
+
+        Run this before trusting analyze_pr output. Reports Python/package
+        versions, knowledge-base readability and coverage (anti-patterns,
+        success-patterns, profiles, case studies, policies), gh CLI
+        availability, MCP tool registration, a sample analyze against a known
+        profile, and data-coverage warnings.
+
+        Returns:
+            dict with keys: ok, prgenius_version, python_version, platform,
+            knowledge_base, gh, mcp, sample, warnings
+        """
+        from .doctor import run_doctor
+
+        return run_doctor(rr)
 
     return mcp
 

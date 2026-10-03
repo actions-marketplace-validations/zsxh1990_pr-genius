@@ -85,7 +85,14 @@ _DEPENDENCY_PATHS = [
 def parse_diff_stat(diff_stat: str) -> tuple[int, int, int]:
     """Parse diff stat string to extract files/lines added/deleted.
 
-    Expected format: "file1.py | 10 +++--" or "3 files changed, 10 insertions(+), 5 deletions(-)"
+    Accepted formats (git diff --stat style):
+      - "file1.py | 10 +++--"     → per-file row; the number is total changed
+        lines and the +- histogram splits them into insertions/deletions
+      - "3 files changed, 10 insertions(+), 5 deletions(-)"  → summary row
+
+    issue #59: "file.py | 5 +" must yield (files=1, added=5, deleted=0) —
+    the histogram is authoritative, deletions are never invented.
+
     Returns: (files_changed, lines_added, lines_deleted)
     """
     if not diff_stat:
@@ -107,13 +114,21 @@ def parse_diff_stat(diff_stat: str) -> tuple[int, int, int]:
         return files, added, deleted
 
     # Parse individual file lines: "file.py | 10 +++--"
-    file_lines = re.findall(r".+\|\s+(\d+)\s+[+-]+", diff_stat)
-    if file_lines:
-        files = len(file_lines)
-        for line in file_lines:
-            added += int(line)
-        # Estimate deleted from total (rough heuristic)
-        deleted = max(0, added // 3)
+    file_rows = re.findall(r".+\|\s+(\d+)\s+([+-]+)", diff_stat)
+    if file_rows:
+        files = len(file_rows)
+        for total_str, bar in file_rows:
+            total = int(total_str)
+            plus = bar.count("+")
+            minus = bar.count("-")
+            marks = plus + minus
+            if marks == 0:
+                # No histogram visible — treat the number as insertions.
+                added += total
+            else:
+                # The histogram is a relative split of the changed lines.
+                added += round(total * plus / marks)
+                deleted += total - round(total * plus / marks)
         return files, added, deleted
 
     # Parse just file count: "3 files changed"

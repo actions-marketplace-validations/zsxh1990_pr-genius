@@ -415,3 +415,76 @@ fix_action: fix it
             result2 = load_anti_patterns(repo_root)
             assert "existing" in result2
             assert "added-later" in result2
+
+
+class TestImpactReviewAndSizeFromDiffStat:
+    """issue #61 (impact/review on analyze path) + #59 (diff_stat is authoritative)."""
+
+    def test_impact_review_keys_null_without_diff_stat(self):
+        result = analyze_pr(
+            title="feat: add thing",
+            description="",
+            repo="org/repo",
+            repo_root=REPO_ROOT,
+        )
+        assert "impact" in result
+        assert "review" in result
+        assert result["impact"] is None
+        assert result["review"] is None
+
+    def test_impact_review_populated_with_diff_stat(self):
+        result = analyze_pr(
+            title="feat: add thing",
+            description="",
+            repo="org/repo",
+            repo_root=REPO_ROOT,
+            diff_stat="file.py | 5 +",
+        )
+        assert result["impact"] is not None
+        assert result["impact"]["files_changed"] == 1
+        assert result["impact"]["lines_added"] == 5
+        assert result["impact"]["lines_deleted"] == 0
+        assert result["review"] is not None
+        assert result["review"]["level"] in ("low", "medium", "high")
+
+    def test_diff_stat_beats_title_keywords(self):
+        """issue #59: with --diff-stat, the title-keyword fallback must not fire."""
+        result = analyze_pr(
+            title="feat: add thing",
+            description="",
+            repo="org/repo",
+            repo_root=REPO_ROOT,
+            diff_stat="file.py | 5 +",
+        )
+        assert result["pr_size"] == "XS"
+
+        result = analyze_pr(
+            title="test: thing",
+            description="",
+            repo="org/repo",
+            repo_root=REPO_ROOT,
+            diff_stat="file.py | 5 +",
+        )
+        assert result["pr_size"] == "XS"
+
+    def test_fanout_files_raise_size(self):
+        """issue #59: a 5-line diff across 30 files is not XS."""
+        result = analyze_pr(
+            title="chore: rename",
+            description="",
+            repo="org/repo",
+            repo_root=REPO_ROOT,
+            diff_stat="30 files changed, 5 insertions(+), 0 deletions(-)",
+        )
+        assert result["pr_size"] == "XL"
+
+    def test_files_3_to_5_are_at_least_s(self):
+        """issue #59: 2-D bucket picks the higher of lines × files."""
+        result = analyze_pr(
+            title="chore: rename",
+            description="",
+            repo="org/repo",
+            repo_root=REPO_ROOT,
+            diff_stat="4 files changed, 2 insertions(+), 2 deletions(-)",
+        )
+        assert result["pr_size"] == "S"

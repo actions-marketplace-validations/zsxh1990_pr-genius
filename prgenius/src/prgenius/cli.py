@@ -37,6 +37,37 @@ def _get_repo_root(args) -> Path:
 
 
 # ============================================================
+# 输入校验 (issue #72): argparse type callables — 拒绝不可能的取值,
+# 让 typo 在进入分析前就报错, 而不是产出语义无意义的结果。
+# ============================================================
+
+AUTHOR_ASSOCIATIONS = ["NONE", "CONTRIBUTOR", "COLLABORATOR", "MEMBER", "OWNER"]
+MERGEABLE_STATES = ["MERGEABLE", "CONFLICTING", "UNKNOWN"]
+
+
+def _nonneg_int(value: str) -> int:
+    """argparse type: integer >= 0 (star counts, PR numbers)."""
+    try:
+        iv = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not an integer: {value!r}")
+    if iv < 0:
+        raise argparse.ArgumentTypeError(f"must be >= 0, got {iv}")
+    return iv
+
+
+def _rate01(value: str) -> float:
+    """argparse type: float in [0.0, 1.0] (merge rates)."""
+    try:
+        fv = float(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number: {value!r}")
+    if not 0.0 <= fv <= 1.0:
+        raise argparse.ArgumentTypeError(f"must be between 0.0 and 1.0, got {fv}")
+    return fv
+
+
+# ============================================================
 # analyze — 主命令
 # ============================================================
 
@@ -48,6 +79,7 @@ def cmd_analyze(args) -> int:
     """分析 PR 并输出改进建议"""
     repo_root = _get_repo_root(args)
     labels = args.labels if args.labels else []
+    diff_stat = getattr(args, "diff_stat", "") or ""
 
     result = analyze_pr(
         args.title, args.description or "", args.repo, repo_root,
@@ -55,6 +87,7 @@ def cmd_analyze(args) -> int:
         star_count=args.star_count or 0, repo_merge_rate=args.repo_merge_rate or 0.0,
         author_association=args.author_association or "NONE",
         mergeable=args.mergeable or "MERGEABLE",
+        diff_stat=diff_stat,
     )
 
     if args.format == "json":
@@ -137,6 +170,7 @@ def cmd_coach(args) -> int:
     """
     repo_root = _get_repo_root(args)
     labels = args.labels if args.labels else []
+    diff_stat = getattr(args, 'diff_stat', '') or ""
 
     result = analyze_pr(
         args.title, args.description or "", args.repo, repo_root,
@@ -144,17 +178,10 @@ def cmd_coach(args) -> int:
         star_count=args.star_count or 0, repo_merge_rate=args.repo_merge_rate or 0.0,
         author_association=args.author_association or "NONE",
         mergeable=args.mergeable or "MERGEABLE",
+        diff_stat=diff_stat,
     )
-
-    # Phase 5.1: Add impact/review assessment if diff_stat provided
-    diff_stat = getattr(args, 'diff_stat', '') or ""
-    if diff_stat:
-        from .pr_metadata import assess_impact, assess_review_complexity
-        from dataclasses import asdict
-        impact = assess_impact(args.title, args.body or "", diff_stat)
-        review = assess_review_complexity(impact, args.title, args.body or "")
-        result["impact"] = asdict(impact)
-        result["review"] = asdict(review)
+    # issue #61: impact / review 已由 analyze_pr 统一计算并放在 result 中
+    # (有 diff_stat 时为 dict, 否则为 null) — coach 不再单独拼装。
 
     tier = result["tier"]
     icon = TIER_ICONS.get(tier, "⚪")
@@ -409,11 +436,56 @@ def cmd_triage(args) -> int:
                 if anchors:
                     print(f"   Anchors: {anchors}")
                 print()
-        else:
+
+        if not result.get("policy_loaded"):
+            # issue #63: 无 policy 时禁止渲染成 "passed" — 明确写出盲区,
+            # 并列出 universal 反模式的回退命中。
+            fallback = result.get("fallback_signals", [])
+            if fallback:
+                print("Policy not loaded — universal anti-patterns applied:\n")
+                for i, s in enumerate(fallback, 1):
+                    sev = s.get("severity", "")
+                    print(f"{i}. [{sev}] **{s.get('key', '?')}**")
+                    if s.get("symptom"):
+                        print(f"   {s['symptom']}")
+                    if s.get("fix_action"):
+                        print(f"   → {s['fix_action']}")
+                print()
+            else:
+                print("Policy not loaded — no universal anti-patterns matched.\n")
+        elif not result["violations"]:
             print("No policy violations detected.\n")
 
-    # Exit code: 1 = reject, 0 = pass/warn
-    return 1 if result["verdict"] == "reject" else 0
+    # Exit code (issue #63):
+    #   0 = policy loaded and not rejected (pass/warn)
+    #   1 = policy loaded and verdict=reject
+    #   2 = no policy loaded, no universal anti-patterns matched
+    #   3 = no policy loaded, universal anti-patterns matched
+    if result["verdict"] == "reject":
+        return 1
+    if not result.get("policy_loaded"):
+        return 3 if result.get("fallback_signals") else 2
+    return 0
+
+
+def cmd_doctor(args) -> int:
+    """install / 数据 / 集成自检 (issue #70).
+
+    回答 "为什么 analyze 什么都没返回": Python/包版本、知识库可读性与
+    覆盖率、gh 是否可用、MCP 服务能否加载, 外加一次 sample analyze。
+    --format json 给机器, 默认 text 给人。exit 0 = OK, 1 = 有硬故障。
+    """
+    from .doctor import run_doctor, format_doctor_text
+
+    repo_root = _get_repo_root(args)
+    report = run_doctor(repo_root)
+
+    if args.format == "json":
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        print(format_doctor_text(report))
+
+    return 0 if report.get("ok") else 1
 
 
 def cmd_status(args) -> int:
@@ -934,12 +1006,14 @@ def main(argv: list[str] | None = None) -> int:
     an.add_argument("--repo", "-r", required=True, help="目标仓库 (org/repo)")
     an.add_argument("--labels", "-l", nargs="*", default=[], help="PR 标签")
     an.add_argument("--author", "-a", default="", help="PR 作者")
-    an.add_argument("--star-count", type=int, default=0, help="仓库 star 数")
-    an.add_argument("--repo-merge-rate", type=float, default=0.0, help="仓库 merge 率 (0-1)")
-    an.add_argument("--author-association", default="NONE",
+    an.add_argument("--star-count", type=_nonneg_int, default=0, help="仓库 star 数 (>= 0)")
+    an.add_argument("--repo-merge-rate", type=_rate01, default=0.0, help="仓库 merge 率 (0.0-1.0)")
+    an.add_argument("--author-association", default="NONE", choices=AUTHOR_ASSOCIATIONS,
                     help="作者身份 (NONE/CONTRIBUTOR/COLLABORATOR/MEMBER/OWNER)")
-    an.add_argument("--mergeable", default="MERGEABLE",
+    an.add_argument("--mergeable", default="MERGEABLE", choices=MERGEABLE_STATES,
                     help="合并状态 (MERGEABLE/CONFLICTING/UNKNOWN)")
+    an.add_argument("--diff-stat", default="",
+                    help="git diff --stat 输出 (填充 impact/review 并作为 PR 大小权威信号)")
     an.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
     an.set_defaults(func=cmd_analyze)
 
@@ -951,9 +1025,9 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("--repo", "-r", required=True, help="目标仓库 (org/repo)")
     ev.add_argument("--labels", "-l", nargs="*", default=[], help="PR 标签")
     ev.add_argument("--author", "-a", default="", help="PR 作者")
-    ev.add_argument("--star-count", type=int, default=0, help="仓库 star 数")
-    ev.add_argument("--repo-merge-rate", type=float, default=0.0, help="仓库 merge 率")
-    ev.add_argument("--author-association", default="NONE", help="作者身份")
+    ev.add_argument("--star-count", type=_nonneg_int, default=0, help="仓库 star 数 (>= 0)")
+    ev.add_argument("--repo-merge-rate", type=_rate01, default=0.0, help="仓库 merge 率 (0.0-1.0)")
+    ev.add_argument("--author-association", default="NONE", choices=AUTHOR_ASSOCIATIONS, help="作者身份")
     ev.set_defaults(func=cmd_eval)
 
     # ---- coach (Agent PR Dojo) ----
@@ -964,10 +1038,10 @@ def main(argv: list[str] | None = None) -> int:
     ch.add_argument("--repo", "-r", required=True, help="目标仓库 (org/repo)")
     ch.add_argument("--labels", "-l", nargs="*", default=[], help="PR 标签")
     ch.add_argument("--author", "-a", default="", help="PR 作者")
-    ch.add_argument("--star-count", type=int, default=0, help="仓库 star 数")
-    ch.add_argument("--repo-merge-rate", type=float, default=0.0, help="仓库 merge 率")
-    ch.add_argument("--author-association", default="NONE", help="作者身份")
-    ch.add_argument("--mergeable", default="MERGEABLE", help="合并状态 (MERGEABLE/CONFLICTING/UNKNOWN)")
+    ch.add_argument("--star-count", type=_nonneg_int, default=0, help="仓库 star 数 (>= 0)")
+    ch.add_argument("--repo-merge-rate", type=_rate01, default=0.0, help="仓库 merge 率 (0.0-1.0)")
+    ch.add_argument("--author-association", default="NONE", choices=AUTHOR_ASSOCIATIONS, help="作者身份")
+    ch.add_argument("--mergeable", default="MERGEABLE", choices=MERGEABLE_STATES, help="合并状态 (MERGEABLE/CONFLICTING/UNKNOWN)")
     ch.add_argument("--diff-stat", default="", help="git diff --stat 输出 (用于 impact 评估)")
     ch.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
     ch.set_defaults(func=cmd_coach)
@@ -982,6 +1056,15 @@ def main(argv: list[str] | None = None) -> int:
     tr.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
     tr.set_defaults(func=cmd_triage)
 
+    # ---- doctor (issue #70: 安装/数据/集成自检) ----
+    dr = sub.add_parser(
+        "doctor",
+        help="自检: 版本/知识库/gh/MCP 可用性 (机器可读 --format json)",
+        epilog="Answers 'why is my analyze returning nothing?' — run this first.",
+    )
+    dr.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
+    dr.set_defaults(func=cmd_doctor)
+
     # ---- suggest (兼容) ----
     sg = sub.add_parser("suggest", help="获取改进建议 (同 analyze)")
     sg.add_argument("title", help="PR 标题")
@@ -990,9 +1073,9 @@ def main(argv: list[str] | None = None) -> int:
     sg.add_argument("--repo", "-r", required=True, help="目标仓库 (org/repo)")
     sg.add_argument("--labels", "-l", nargs="*", default=[], help="PR 标签")
     sg.add_argument("--author", "-a", default="", help="PR 作者")
-    sg.add_argument("--star-count", type=int, default=0, help="仓库 star 数")
-    sg.add_argument("--repo-merge-rate", type=float, default=0.0, help="仓库 merge 率")
-    sg.add_argument("--author-association", default="NONE", help="作者身份")
+    sg.add_argument("--star-count", type=_nonneg_int, default=0, help="仓库 star 数 (>= 0)")
+    sg.add_argument("--repo-merge-rate", type=_rate01, default=0.0, help="仓库 merge 率 (0.0-1.0)")
+    sg.add_argument("--author-association", default="NONE", choices=AUTHOR_ASSOCIATIONS, help="作者身份")
     sg.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
     sg.set_defaults(func=cmd_suggest)
 
