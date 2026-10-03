@@ -26,6 +26,14 @@ export interface VerifiedSlotContract {
   catalogSource: string
 }
 
+/**
+ * **候选提示，不是权威白名单。**
+ *
+ * 决定改在这里（issue #97 反复翻车后的取舍）：pinned SDK 与 upstream master
+ * 的 catalog 不一致（42 vs 92 keys），两者都自称权威，对着任一个写死判据都会
+ * 在对方更新时被推翻。所以权威是**运行时**——apply() 逐个试候选，宿主认哪个
+ * 用哪个。这张表只回答「注册时该带哪些 options」，不回答「这个 key 合不合法」。
+ */
 export const VERIFIED_SLOT_CONTRACTS: Record<string, VerifiedSlotContract> = {
   'sidebar.footer.action': {
     kind: 'list',
@@ -39,11 +47,29 @@ export const VERIFIED_SLOT_CONTRACTS: Record<string, VerifiedSlotContract> = {
     entryShape: 'id',
     catalogSource: 'packages/extensions/cordis-client-runner/src/client/slot-catalog.ts',
   },
+  /**
+   * 右栏落点：pinned SDK 里是 `details`（single/session），upstream master 里
+   * 是 `sidebar.right.pane.tab`（keyed/session）。运行时探测决定用哪个，所以
+   * 两个契约都登记 —— 只登记一个会让另一个的注册静默失败。
+   */
+  'details': {
+    kind: 'single',
+    scope: 'session',
+    entryShape: 'id',
+    catalogSource: '@deepseek-ai/dsh-cordis-client-runner (pinned CLIENT_SLOT_API)',
+  },
   'sidebar.right.pane.tab': {
     kind: 'keyed',
     scope: 'session',
     entryShape: 'key',
     catalogSource: 'packages/extensions/cordis-client-runner/src/client/slot-catalog.ts',
+  },
+  /** 设置/偏好落点。gate 的 ledger 显示 `settings.section` 被宿主接受（list/root）。 */
+  'settings.section': {
+    kind: 'list',
+    scope: 'root',
+    entryShape: 'id',
+    catalogSource: 'pinned SDK CLIENT_SLOT_API (gate ledger: accepted)',
   },
   'settings.plugins.tab': {
     kind: 'list',

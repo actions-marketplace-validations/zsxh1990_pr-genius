@@ -16,6 +16,7 @@ import { planRegistrations, SURFACE_IDS } from './ui/surfaces.ts'
 // 导入 client 层是让它进 bundle 的唯一途径 —— 此前它只是躺在 src/client/ 里
 // 未被引用，所以 tsc 通过、bundle 里却没有它（issue #90）。
 import { surfaceComponents, type AdvisorFace } from './client/AdvisorPanel.tsx'
+import { slotRegisterDef } from './client/slots.ts'
 import { } from './client/slots.ts'
 import {
   Config,
@@ -227,9 +228,13 @@ export function apply(ctx: Context, config: Config): void {
       for (const key of candidates) {
         if (!key) continue
         try {
+          const def = slotRegisterDef(key, surface.id, surface.id)
+          if (!def) {
+            logger.warn('surface %s: no verified contract for slot %s; skipping', surface.id, key)
+            continue
+          }
           const dispose = slotsCtx.slots!.inject!(key, () =>
-            slotsCtx.slots!.register!({ name: surface.id, id: surface.id, label: surface.id },
-              COMPONENTS[surface.id] ?? null))
+            slotsCtx.slots!.register!(def, COMPONENTS[surface.id] ?? null))
           surfaceDisposers.push(dispose)
           logger.info('surface registered: %s -> %s', surface.id, key)
           registered = true
