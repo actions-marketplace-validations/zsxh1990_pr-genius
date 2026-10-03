@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import glob
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass, field, asdict
@@ -122,15 +123,133 @@ class PRStatusResult:
     rebase_suggested: bool = False
 
 
+def _read_token() -> Optional[str]:
+    """Read a GitHub token: GITHUB_TOKEN env → GH_TOKEN env → ~/.git-credentials.
+
+    Mirrors friendly_watch.py. Never log or print the returned value.
+    """
+    tok = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if tok:
+        return tok.strip()
+    creds_path = Path.home() / ".git-credentials"
+    if creds_path.is_file():
+        for line in creds_path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "@github.com" in line and ":" in line:
+                after_scheme = line.split("://", 1)[1]
+                creds = after_scheme.split("@", 1)[0]
+                if ":" in creds:
+                    return creds.split(":", 1)[1]
+    return None
+
+
+def _curl_gh(args: list[str]) -> str:
+    """Fallback: replicate a `gh api ...` invocation via curl + a GitHub token.
+
+    Handles the two call shapes used by status / auto-ping / auto-rebase:
+      gh api graphql -f query=<gql>          → POST https://api.github.com/graphql
+      gh api <path> [-X METHOD] [-f k=v ...] → REST call against api.github.com
+
+    Only `gh api` is supported; other gh verbs are CLI sugar and stay gh-only.
+    """
+    tok = _read_token()
+    if not tok:
+        raise RuntimeError(
+            "gh CLI not available and no GITHUB_TOKEN / GH_TOKEN — cannot reach the GitHub API"
+        )
+    if not args or args[0] != "api":
+        raise RuntimeError(f"_curl_gh: unsupported gh invocation: {args[:3]}")
+
+    fields: dict[str, str] = {}
+    method = "GET"
+    path_parts: list[str] = []
+    i = 1
+    while i < len(args):
+        a = args[i]
+        if a in ("-f", "--field"):
+            if i + 1 >= len(args) or "=" not in args[i + 1]:
+                raise RuntimeError("_curl_gh: -f expects key=value")
+            k, v = args[i + 1].split("=", 1)
+            fields[k] = v
+            i += 2
+        elif a in ("-X", "--method"):
+            if i + 1 >= len(args):
+                raise RuntimeError("_curl_gh: -X expects a method name")
+            method = args[i + 1]
+            i += 2
+        elif a.startswith("-"):
+            raise RuntimeError(f"_curl_gh: unsupported gh flag: {a}")
+        else:
+            path_parts.append(a)
+            i += 1
+
+    if path_parts == ["graphql"]:
+        url = "https://api.github.com/graphql"
+        method = "POST"
+        payload = json.dumps({"query": fields.get("query", "")})
+    else:
+        if not path_parts:
+            raise RuntimeError("_curl_gh: missing API path")
+        url = "https://api.github.com/" + "/".join(path_parts).lstrip("/")
+        # gh `-f` fields become the JSON body for non-GET requests.
+        payload = json.dumps(fields) if (fields and method != "GET") else None
+
+    cmd = [
+        "curl", "-sS", "--max-time", "30",
+        "-H", f"Authorization: Bearer {tok}",
+        "-H", "Accept: application/vnd.github+json",
+        "-H", "X-GitHub-Api-Version: 2022-11-28",
+    ]
+    if payload is not None:
+        cmd += ["-H", "Content-Type: application/json", "-X", method,
+                "--data-raw", payload]
+    elif method != "GET":
+        cmd += ["-X", method]
+    cmd.append(url)
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=35)
+    if result.returncode != 0:
+        raise RuntimeError(f"curl GitHub API call failed: {result.stderr.strip()}")
+    return result.stdout
+
+
 def _run_gh(args: list[str]) -> str:
-    """Run gh CLI and return stdout."""
-    result = subprocess.run(
-        ["gh"] + args,
-        capture_output=True, text=True, timeout=30,
-    )
+    """Run gh CLI and return stdout.
+
+    Falls back to `_curl_gh` when the `gh` binary is missing
+    (FileNotFoundError) or present but not executable (PermissionError —
+    e.g. WSL whose PATH points at a Windows gh.exe, or a container without
+    gh installed). Restores the behaviour of commit 333ac8b, lost in v2.0.0
+    (issue #55).
+    """
+    try:
+        result = subprocess.run(
+            ["gh"] + args,
+            capture_output=True, text=True, timeout=30,
+        )
+    except (FileNotFoundError, PermissionError):
+        return _curl_gh(args)
     if result.returncode != 0:
         raise RuntimeError(f"gh {' '.join(args[:3])}... failed: {result.stderr.strip()}")
     return result.stdout
+
+
+def gh_api_request(
+    path: str, method: str = "GET", fields: Optional[dict] = None
+) -> str:
+    """Call the GitHub REST API via gh CLI, falling back to curl + token.
+
+    `path` is relative to api.github.com (e.g. ``repos/o/r/pulls/1/update-branch``).
+    The gh-vs-curl choice is internal to `_run_gh`.
+    """
+    args = ["api", path]
+    if method and method.upper() != "GET":
+        args += ["-X", method.upper()]
+    for key, value in (fields or {}).items():
+        args += ["-f", f"{key}={value}"]
+    return _run_gh(args)
 
 
 def _parse_datetime(s: str) -> Optional[datetime]:
@@ -207,8 +326,15 @@ def _map_check_state(state: Optional[str]) -> str:
     return ""
 
 
-def fetch_open_prs(author: Optional[str] = None, repo: Optional[str] = None) -> list[PRInfo]:
-    """Fetch open PRs from GitHub using a single GraphQL query."""
+def fetch_open_prs_via_token(
+    author: Optional[str] = None, repo: Optional[str] = None
+) -> list[PRInfo]:
+    """Fetch open PRs from GitHub using a single GraphQL query.
+
+    The transport — `gh` CLI vs `curl` + GITHUB_TOKEN/GH_TOKEN — is an
+    internal detail owned by `_run_gh`, so callers do not need to know which
+    one ran. See issue #55 / commit 333ac8b.
+    """
     search_query = _build_search_query(author, repo)
     safe_query = json.dumps(search_query)[1:-1]  # JSON-escapes \, ", newlines, control chars
     query = _GRAPHQL_QUERY.replace("SEARCH_QUERY", safe_query)
@@ -264,6 +390,15 @@ def fetch_open_prs(author: Optional[str] = None, repo: Optional[str] = None) -> 
         ))
 
     return results
+
+
+def fetch_open_prs(author: Optional[str] = None, repo: Optional[str] = None) -> list[PRInfo]:
+    """Fetch open PRs from GitHub.
+
+    Thin back-compat wrapper over :func:`fetch_open_prs_via_token`; kept so
+    existing callers (and tests that patch this name) keep working.
+    """
+    return fetch_open_prs_via_token(author=author, repo=repo)
 
 
 def classify_pr(pr: PRInfo, stale_days: int = 14) -> PRStatusResult:
