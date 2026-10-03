@@ -3,7 +3,7 @@
  * 纯静态/内存测试 —— 不启动 DSH，不调用 Python 引擎。
  */
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'vitest'
 import {
   Config,
   CONTRIBUTOR_ACTIONS,

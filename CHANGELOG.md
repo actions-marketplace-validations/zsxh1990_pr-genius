@@ -6,6 +6,18 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+> **⚠️ CORRECTION (2026-10-03)** — two claims below the 2.1.0 entry were wrong as
+> published and are retracted inline:
+> 1. "YAML block scalars no longer leak a literal `|`" — the fix did not reach
+>    the analyzer's load path; **12/251 patterns still leak** (issue #89).
+> 2. "Slots are declared by augmenting `SlotMap`, components are React" — those
+>    modules are not imported by `src/index.ts` and are absent from the shipped
+>    bundle; `apply()` still passes `null` as the component (issue #90, #86).
+>
+> Both were verified against the published `prgenius-core==2.1.0` / `pr-genius@2.1.0`
+> artifacts. The 2.1.0 artifacts remain published; the corrections live here and
+> in the linked issues.
+
 ## [2.1.0] - 2026-10-03
 
 ### Added
@@ -25,8 +37,12 @@ description: Changelog following Keep a Changelog format + GitHub compare links
   caught only `FileNotFoundError`, while the reported traceback is
   `PermissionError`. `auto-ping` and `auto-rebase` write paths use the same
   helper. (issue #55)
-- **YAML block scalars no longer leak a literal `|`** into output. `symptom: |`
-  kept the indicator in the value; 12 of 251 patterns were affected. (issue #51)
+- **YAML block scalars no longer leak a literal `|`** — *partially* (see correction).
+  The fix landed in `parse_frontmatter`, but the analyzer's load path
+  (`evaluator.py::load_anti_patterns`) calls `_parse_simple_frontmatter`, which
+  does not understand block scalars. Measured against the 2.1.0 package:
+  **12/251 patterns still leak `|`.** The CHANGELOG for 2.1.0 claimed this was
+  fixed; that claim was wrong and is retracted here. (issue #51, #89)
 - **URL list items no longer parse as dicts.** `- https://…` split on its colon
   into `{"https": "//…"}`, dropping the scheme into the key. (issue #60)
 - `merge_probability` no longer presents a tier default as if measured — it now
@@ -42,8 +58,12 @@ description: Changelog following Keep a Changelog format + GitHub compare links
   `@deepseek-ai/schemastery` 3.18.4 — the platform's own packages — not the
   public `cordis` / `schemastery`. Two different `Context` types; a plugin
   compiled against one is not assignable to the other's `Plugin<any>`.
-- Slots are declared by augmenting `SlotMap`, components are React. Both match
-  the platform's published type definitions.
+- Slots and components — **the 2.1.0 claim here was wrong and is retracted**.
+  `src/client/slots.ts` (SlotMap augmentation) and `src/client/AdvisorPanel.tsx`
+  (React components) exist in the source tree but are **not imported by
+  `src/index.ts`**, so they never reach the bundle. `dist/index.mjs` contains
+  neither, and `apply()` still calls `register(..., null)`. The shipped bundle's
+  slot behaviour is unchanged from 2.0.0. (issue #90, #86)
 - README, `docs/BLOG.md` and `docs/dsh-integration.md` re-measured: 943 patterns
   (251 anti + 692 success) across 67 repos, 14 MCP tools. The unmeasurable
   "100% quality pass rate" claim is removed rather than replaced, and the

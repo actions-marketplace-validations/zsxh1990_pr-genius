@@ -55,6 +55,22 @@ def _split_key_value(line: str) -> tuple[str, str] | None:
         return None
     return k, v
 
+
+def _finish_scalar(current_value: list[str], in_list: bool):
+    """Close out a key's accumulated value.
+
+    Two things happen here, and both matter: the block-scalar fold wraps its
+    body in quotes so the tokenizer treats it as one value, so those quotes are
+    stripped; and a non-list value is joined with spaces, matching the simple
+    parser's historical shape.
+    """
+    if in_list:
+        return current_value
+    joined = " ".join(current_value).strip()
+    if len(joined) >= 2 and joined[0] == '"' and joined[-1] == '"':
+        joined = joined[1:-1]
+    return joined
+
 def _parse_simple_frontmatter(text: str) -> dict:
     """Parse a simple key-value frontmatter block (evaluator-style).
 
@@ -66,10 +82,14 @@ def _parse_simple_frontmatter(text: str) -> dict:
     current_value: list[str] = []
     in_list = False
 
-    for line in text.strip().split("\n"):
+    # Fold block scalars first — same pre-pass parse_frontmatter uses. Without it
+    # `symptom: |` keeps the indicator as the value, and this is the parser the
+    # analyzer's load path calls (issue #89: a fix in the *other* parser left the
+    # real path leaking).
+    for line in _fold_block_scalars(text).splitlines():
         if re.match(r"^[a-zA-Z_]+:", line) and not line.startswith("  "):
             if current_key is not None:
-                fm[current_key] = current_value if in_list else " ".join(current_value).strip()
+                fm[current_key] = _finish_scalar(current_value, in_list)
             key, value = line.split(":", 1)
             current_key = key.strip()
             value = value.strip()
@@ -89,7 +109,7 @@ def _parse_simple_frontmatter(text: str) -> dict:
             current_value.append(line.strip())
 
     if current_key is not None:
-        fm[current_key] = current_value if in_list else " ".join(current_value).strip()
+        fm[current_key] = _finish_scalar(current_value, in_list)
     return fm
 
 

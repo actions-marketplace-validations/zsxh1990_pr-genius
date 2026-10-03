@@ -13,6 +13,9 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 import { planRegistrations, SURFACE_IDS } from './ui/surfaces.ts'
+// 导入 client 层是让它进 bundle 的唯一途径 —— 此前它只是躺在 src/client/ 里
+// 未被引用，所以 tsc 通过、bundle 里却没有它（issue #90）。
+import { Dashboard, Advisor, AdvisorPanel, Preferences, type AdvisorFace } from './client/AdvisorPanel.tsx'
 import {
   Config,
   PrGeniusConfigError,
@@ -169,6 +172,14 @@ export function apply(ctx: Context, config: Config): void {
   // 组件形态与 renderer 约定属于运行时契约，本机无 DEEPSEEK_API_KEY 跑不起 DSH，
   // 所以这里只在宿主真的提供 slots 服务时才注册，并把组件实现留给 UI 层注入。
   // 宁可少注册一个面，也不假称「已渲染」。
+  // 四个界面各自的组件。Tab 与 Panel 共用 Advisor —— 换落点不换逻辑。
+  const COMPONENTS: Record<string, ((face: AdvisorFace) => unknown) | null> = {
+    [SURFACE_IDS.dashboard]: Dashboard,
+    [SURFACE_IDS.advisorTab]: Advisor,
+    [SURFACE_IDS.advisorPanel]: AdvisorPanel,
+    [SURFACE_IDS.preferences]: Preferences,
+  }
+
   const surfaceDisposers: Array<() => void> = []
 
   // Reflect.has 而不是 `typeof ctx.command === 'function'`：直接读不存在的属性会被
@@ -215,8 +226,8 @@ export function apply(ctx: Context, config: Config): void {
         const dispose = slotsCtx.slots.inject(surface.slot, () =>
           slotsCtx.slots!.register!(
             { name: surface.id, kind: surface.kind },
-            // 组件由 UI 层注入；这里只负责把落点挂对。真实渲染需 DSH 运行时验证。
-            null,
+            // 真实组件，不再是 null —— null 注册等于占了位置却不渲染（issue #86/#90）。
+            COMPONENTS[surface.id] ?? null,
           ),
         )
         surfaceDisposers.push(dispose)
