@@ -13,13 +13,17 @@
 import type { SlotEntryDef } from '@deepseek-ai/dsh-client-ui-slots'
 
 /** 侧边栏脚部的跨会话总览 —— 对应 dsh-context 的 Context Dashboard。 */
-export const DASHBOARD_SLOT = 'pr-genius.dashboard'
+/** 真实 slot：sidebar.footer.action（root-scope list，dsh-context 同款落点）*/
+export const DASHBOARD_SLOT = 'sidebar.footer.action'
 /** 会话视图标签页 —— dsh-context 的 Context tab 落在这里。 */
-export const ADVISOR_TAB_SLOT = 'pr-genius.advisor-tab'
+/** 真实 slot：conversation.view（会话视图标签页，与 Chat/Trajectory 并列）*/
+export const ADVISOR_TAB_SLOT = 'conversation.view'
 /** 右栏面板（需 dsh 0.1.5-rc.1+）。 */
-export const ADVISOR_PANEL_SLOT = 'pr-genius.advisor-panel'
+/** 真实 slot：sidebar.right.pane.tab（右栏面板）*/
+export const ADVISOR_PANEL_SLOT = 'sidebar.right.pane.tab'
 /** 设置卡 —— Preferences/Configuration 落在 ui-settings 的插件配置面。 */
-export const PREFERENCES_SLOT = 'pr-genius.preferences'
+/** 偏好入口与 Dashboard 同坐 sidebar.footer.action（root-scope list），各占一行 */
+export const PREFERENCES_SLOT = 'sidebar.footer.action'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
@@ -27,15 +31,15 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * 跨会话总览：在飞 PR 健康、风险分布、知识库规模。挂在侧边栏脚部。
      * root 作用域 —— 它不依赖某个会话。
      */
-    [DASHBOARD_SLOT]: { kind: 'single'; scope: 'root' }
+    // 同一个 list slot 里 Dashboard 与 Preferences 各占一项。
+    'sidebar.footer.action': { kind: 'list'; scope: 'root' }
     /**
      * 顾问 Tab：当前 diff 的实时诊断。挂在会话视图，因此必须是 session 作用域。
      */
-    [ADVISOR_TAB_SLOT]: { kind: 'single'; scope: 'session' }
+    'conversation.view': { kind: 'single'; scope: 'session' }
     /** 同一诊断的右栏投影 —— 共用一套数据，只换落点。 */
-    [ADVISOR_PANEL_SLOT]: { kind: 'single'; scope: 'session' }
+    'sidebar.right.pane.tab': { kind: 'single'; scope: 'session' }
     /** 插件偏好卡：落点、语言、维护者模式、风险过滤。 */
-    [PREFERENCES_SLOT]: { kind: 'single'; scope: 'root' }
   }
 
   interface LocaleNamespaceMap {
@@ -60,8 +64,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
  * keyProps/hookContext/inject，没有 name/key 字段。
  */
 export const SLOT_DECLARATIONS = {
-  [DASHBOARD_SLOT]: { kind: 'single', scope: 'root' },
+  [DASHBOARD_SLOT]: { kind: 'list', scope: 'root' },
   [ADVISOR_TAB_SLOT]: { kind: 'single', scope: 'session' },
   [ADVISOR_PANEL_SLOT]: { kind: 'single', scope: 'session' },
-  [PREFERENCES_SLOT]: { kind: 'single', scope: 'root' },
 } as const satisfies Record<string, SlotEntryDef>
