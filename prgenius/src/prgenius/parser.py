@@ -33,6 +33,28 @@ def extract_frontmatter_text(text: str) -> str | None:
     return m.group(1) if m else None
 
 
+
+_BLOCK_SCALAR = re.compile(r'^[|>][+-]?\d*$')
+
+
+def _is_block_scalar(value: str) -> bool:
+    """YAML block-scalar indicator: `|`, `|-`, `>`, `>+`, `|2` …"""
+    return bool(_BLOCK_SCALAR.match(value.strip()))
+
+
+def _split_key_value(line: str) -> tuple[str, str] | None:
+    """Split `k: v`, refusing to split a URL scheme (`https://…`).
+
+    `https://host` has a colon, so a naive `partition(":")` turns it into
+    `{https: //host}`. The scheme colon is not a key/value separator.
+    """
+    if "://" in line:
+        return None
+    k, sep, v = line.partition(":")
+    if not sep:
+        return None
+    return k, v
+
 def _parse_simple_frontmatter(text: str) -> dict:
     """Parse a simple key-value frontmatter block (evaluator-style).
 
@@ -144,6 +166,45 @@ def _normalize_lists(node):
     return node
 
 
+
+def _fold_block_scalars(text: str) -> str:
+    """Collapse YAML block scalars into single-line quoted values.
+
+    `key: |` (or `>`, with optional chomping/indent indicators) means the
+    indented lines that follow ARE the value. The tokenizer downstream flattens
+    indented lines into the same list, so the block has to be folded first —
+    otherwise the `|` survives as a literal character (issue #51).
+    """
+    out: list[str] = []
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        m = re.match(r'^(\s*[A-Za-z_][\w.-]*\s*:\s*)([|>][+-]?\d*)\s*$', line)
+        if not m:
+            out.append(line)
+            i += 1
+            continue
+        head, _ind = m.group(1), m.group(2)
+        i += 1
+        body: list[str] = []
+        while i < len(lines):
+            nxt = lines[i]
+            if nxt.strip() == "":
+                body.append("")
+                i += 1
+                continue
+            if not nxt.startswith("  "):
+                break
+            body.append(nxt[2:])
+            i += 1
+        while body and body[-1] == "":
+            body.pop()
+        joined = "\\n".join(body)
+        out.append(f'{head}"{joined}"')
+    return "\n".join(out)
+
+
 def parse_frontmatter(text: str) -> dict:
     """Parse a YAML-subset frontmatter block.
 
@@ -152,7 +213,7 @@ def parse_frontmatter(text: str) -> dict:
     normalize any `{'_': [...]}` quirk wrappers to plain lists.
     """
     tokens = []
-    for raw in text.splitlines():
+    for raw in _fold_block_scalars(text).splitlines():
         if not raw.strip():
             continue
         if raw.lstrip().startswith("#"):
@@ -183,8 +244,12 @@ def parse_frontmatter(text: str) -> dict:
             else:
                 current_list = parent[last_key]
 
-            if ":" in content and not content.startswith(('"', "'")):
-                k, _, v = content.partition(":")
+            # A list item that is a URL (`- https://…`) has a colon but no
+            # key/value split — the scheme colon is not a separator. Without this
+            # it becomes {"https": "//…"} instead of a plain string (issue #60).
+            item_kv = _split_key_value(content) if not content.startswith(('"', "'")) else None
+            if item_kv is not None:
+                k, v = item_kv
                 k = _unquote(k.strip())
                 v = v.strip()
                 item: dict = {k: _coerce(v)}
@@ -194,9 +259,13 @@ def parse_frontmatter(text: str) -> dict:
                 current_list.append(_coerce(content))
             continue
 
-        if ":" not in line:
+        # Block scalar (`symptom: |` …): the indicator is not a value — it means
+        # the indented lines that follow ARE the value. Keeping the `|` leaked it
+        # into CLI/MCP output as a literal prefix (issue #51).
+        kv = _split_key_value(line)
+        if kv is None:
             continue
-        k, _, v = line.partition(":")
+        k, v = kv
         k = _unquote(k.strip())
         v = v.strip()
 
@@ -222,6 +291,9 @@ def iter_profiles(repo_root: str | Path) -> Iterator[dict]:
         "anti-patterns", "misakanet-50", ".github", "docs",
         "scripts", "prgenius", "__pycache__", ".git",
         "federation.yaml", "profiles", "archive", "validate_checks",
+        # agent/session scratch — may contain full copies of the corpus (worktrees),
+        # which would be double-counted and would resurrect stale profiles.
+        ".claude",
     }
 
     # Scan root-level profile dirs

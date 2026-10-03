@@ -1,0 +1,13 @@
+{
+  "surface.dashboard": "PR Intelligence Dashboard",
+  "surface.advisorTab": "Advisor",
+  "surface.advisorPanel": "Advisor",
+  "surface.command": "/prgenius",
+  "surface.preferences": "pr-genius",
+  "mode.contributor": "Contributor",
+  "mode.maintainer": "Maintainer",
+  "risk.low_risk": "Low risk",
+  "risk.medium_risk": "Medium risk",
+  "risk.high_risk": "High risk",
+  "empty.noVerdict": "No verdict yet — run a check from the command or the Advisor tab."
+}

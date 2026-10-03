@@ -292,6 +292,10 @@ def contributor_view(
         "checklist": checklist,
         "confidence": confidence,
         "merge_probability": merge_prob,
+        # issue #68: 降级透明化 — 估算值必须自报身份
+        "merge_probability_basis": analysis.get("merge_probability_basis", "unknown"),
+        "merge_probability_degraded": analysis.get("merge_probability_degraded", False),
+        "merge_probability_degraded_reason": analysis.get("merge_probability_degraded_reason", ""),
         "impact": asdict(impact),
         "review": asdict(review),
         "author_info": {

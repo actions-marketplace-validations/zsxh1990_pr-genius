@@ -2,9 +2,9 @@
 type: Documentation
 title: DSH Integration Guide
 description: How to use pr-genius as an MCP skill inside DeepSeek Harness (DSH)
-version: 1.6.2
+version: 2.0.0
 created: 2026-08-15
-updated: 2026-08-15
+updated: 2026-10-03
 author: zsxh1990
 conforms_to: OKF v0.1 (Sudhakaran88/okf-conformance) + agent_guidelines extension
 ---
@@ -27,7 +27,7 @@ DeepSeek Harness (DSH, ⭐108k+) is an open-source AI coding agent built on the 
 | Task planning, testing | Coach mode for iterative PR improvement |
 | File search, linting | Harvest mode to extract reusable lessons |
 | — | Profile-driven context (project-specific rules) |
-| — | 346+ anti-pattern rules, 62+ lessons |
+| — | 251 anti-pattern rules, 692 success patterns |
 
 ## Setup
 
@@ -103,17 +103,17 @@ Analyze git history to generate reusable lessons for future PRs in this project.
 ### 4. Standalone CLI
 
 ```bash
-# Review a PR diff
-pr-genius review --diff-file changes.diff
+# Analyze a PR (merge probability + risk tier)
+python3 -m prgenius analyze "feat: add feature" --repo owner/repo
 
-# Coach mode
-pr-genius coach --repo owner/repo --number 123
+# Coach mode (pass/fail gate)
+python3 -m prgenius coach "feat: add feature" --repo owner/repo
 
-# Harvest lessons
-pr-genius harvest --repo owner/repo
+# Triage (policy check against repo profile)
+python3 -m prgenius triage "docs: typo" --repo owner/repo --diff-stat "docs/faq.md | 3 ++-"
 
-# Check anti-patterns
-pr-genius check --diff-file changes.diff
+# Harvest lessons from a rejected PR
+python3 -m prgenius harvest owner/repo 123
 ```
 
 ## Example Workflow in DSH

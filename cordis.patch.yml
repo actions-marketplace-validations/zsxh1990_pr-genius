@@ -1,3 +1,38 @@
+# pr-genius — DSH (Cordis) 装配文件
+#
+# `dsh plugin add pr-genius` 后由 Loader 读这份文件，ctx.use 实例化成带生命周期的
+# fiber：加载即生效、卸载即还原。
+#
+# config 键下是插件的可调参数。设计原则①：凡是不同部署可能取不同值的，都在这里声明，
+# 而不是写死在源码里 —— 检验标准是「能否在本文件里改这个值而不用改代码」。
+# 设计原则②：这些值由 Schemastery schema 在加载时校验，不合法会**加载即失败**并
+# 指名出错字段，不会带着错值跑起来。
 - insert:
     - id: pr-genius
       name: pr-genius
+      config:
+        # 知识库根。留空 = 用包内自带的 anti-patterns/ + success-patterns/ + profiles/
+        kbRoot: ""
+
+        # 连接现有 Python FastMCP 分析引擎（分析逻辑只有一份，在 Python 侧）
+        mcp:
+          transport: stdio          # stdio | http
+          command: python3          # stdio: 可执行文件
+          args: ["-m", "prgenius", "mcp", "serve"]
+          url: ""                   # http: JSON-RPC 端点
+          timeoutMs: 30000          # 单次 tools/call 超时
+          protocolVersion: "2025-06-18"
+
+        # 侧边栏落点
+        sidebar:
+          defaultView: dashboard    # dashboard | tab | panel
+
+        # 维护者模式（false = 贡献者模式）。两侧共用数据层与 MCP 桥，只换投影。
+        maintainer:
+          enabled: false
+          actions: [READY_FOR_REVIEW, WAIT_FOR_AUTHOR, CLOSE_DUPLICATE, CLOSE_STALE_OR_RISKY, HOLD_MAINTAINER_DECISION]
+          confidenceMin: 0          # 路由结果置信度下限 (0-1)
+          staleDays: 14             # 透传给 status_prs 的陈旧天数窗口
+
+        locale: en                  # en | zh-CN
+        riskFilter: low_risk        # low_risk | medium_risk | high_risk

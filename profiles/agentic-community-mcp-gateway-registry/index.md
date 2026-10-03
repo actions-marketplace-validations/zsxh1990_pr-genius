@@ -4,7 +4,7 @@ title: agentic-community/mcp-gateway-registry PR 模式分析
 description: Enterprise MCP Gateway & Registry 仓 — zsxh1990 PR #1382 + #1383 docs/mermaid-render typo fix 双发经验
 repo: agentic-community/mcp-gateway-registry
 url: https://github.com/agentic-community/mcp-gateway-registry
-star: 765
+star: 955
 fork: 201
 language: Python
 size_kb: 57295
@@ -12,7 +12,7 @@ default_branch: main
 zsxh_pr_count: 2
 status: in-flight
 data_source: zsxh PR #1382 (auth.md) + #1383 (egress-credential-vault.md)
-analyzed_at: 2026-07-04
+analyzed_at: 2026-10-03
 tags:
   - repo-profile
   - mcp
@@ -47,15 +47,16 @@ evidence_urls:
   - https://api.github.com/repos/agentic-community/mcp-gateway-registry/releases/latest
   - https://api.github.com/repos/agentic-community/mcp-gateway-registry/commits
 confidence: high  # autogen from GH API; bump to medium if human-curated
-last_release: 1.25.0
+last_release: 1.31.0  # 2026-09-23 发布
 last_commit_sha: 1d2f5d46
-stars: 766
+stars: 955
 agent_guidelines_evidence:
   allow_unsolicited_pr: https://github.com/agentic-community/mcp-gateway-registry/blob/main/CONTRIBUTING.md
   require_issue_first: https://github.com/agentic-community/mcp-gateway-registry/blob/main/CONTRIBUTING.md
   ai_policy: https://github.com/agentic-community/mcp-gateway-registry/blob/main/CONTRIBUTING.md
   maintainer_vibe: https://github.com/agentic-community/mcp-gateway-registry/pulls?q=is%3Apr+is%3Aclosed
   external_merge_rate_30: https://github.com/agentic-community/mcp-gateway-registry/pulls?q=is%3Apr+is%3Aclosed
+  merge_rate_30d_all: 0.960  # 2026-10-03 重验(全量 PR): 267 merged / (267+11) closed = 96.0%
   close_keywords: https://github.com/agentic-community/mcp-gateway-registry/pulls?q=is%3Apr+is%3Aclosed
 ---
 

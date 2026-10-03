@@ -5,6 +5,40 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 
 # Changelog
 
+
+## [2.0.0] - 2026-10-03
+
+### Added
+- **DSH (Cordis) plugin.** `name` / `inject` / `apply` / `provide` contract with a
+  Schemastery `Config`: 12 tunables, every one settable from `cordis.yml` without
+  touching code, and invalid values fail at load naming the field.
+- **Four surfaces** on the researched slot map: PR Intelligence Dashboard (sidebar),
+  Advisor session tab (`conversation.view`), the same as a right-hand panel, and
+  `/prgenius`. Maintainer mode is the same surfaces on a different projection.
+- `locale/` with EN and 简体中文.
+- `docs/dsh-ui-slot-api.md` — the UI slot / sidebar / settings contract this was
+  written against.
+- `docs/compatibility.md` — DSH version matrix, every cell marked unrun.
+- `docs/maturity-self-assessment.md` — form completeness 70%, engineering
+  convergence 100%, equal-weighted 85%.
+- `scripts/check_dsh_plugin_contract.py` — structural conformance without a
+  runtime: 27/27 blocking checks.
+- `tsdown.config.ts`, `.oxlintrc.json`, `tsconfig.json` (strict).
+
+### Changed
+- Version is now a single source: `prgenius/pyproject.toml` fans out through
+  `scripts/sync_version.py` to `server.json`, `glama.json`, `package.json` and
+  `Dockerfile`.
+- `package.json` `exports` point at the built `dist/*.mjs`, not TypeScript source;
+  `prepublishOnly` builds and tests before publish.
+
+### Fixed
+- TypeScript constructor parameter properties broke Node strip-only type
+  stripping (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`); fields are declared longhand.
+- Probing for `ctx.command` threw before the probe could run — Cordis reads of
+  absent properties raise, so detection now goes through `Reflect.has`, and
+  `inject` stays empty so the plugin still loads without a web host.
+
 All notable changes to pr-genius are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this repo uses
 GitHub tag/release compare links per Keep a Changelog guidance.
