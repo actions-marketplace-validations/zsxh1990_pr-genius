@@ -6,6 +6,47 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [Unreleased]
+
+### Added
+- **Release runtime smoke gate** (`scripts/release-smoke/`, `npm run smoke:release`,
+  `.github/workflows/release-smoke.yml`, wired into `prepublishOnly`). Packs a real
+  tarball, unpacks it, imports the artifact entry, calls `apply()`, and compares the
+  slot keys it actually registers against DSH SDK's own `CLIENT_SLOT_API`. Human- and
+  machine-readable output; exit 0 = the release claims hold, 1 = they don't,
+  2 = unverifiable. (issue #96)
+- The gate's slot list is **not** written anywhere in this repo. It is read from
+  `@deepseek-ai/dsh-cordis-client-runner`'s compiled `CLIENT_SLOT_API` (the build of
+  `packages/extensions/cordis-client-runner/src/client/slot-catalog.ts`), version-pinned
+  by `package.json`, with `gh api` against `deepseek-ai/deepseek-harness@master` as a
+  cross-check. If neither resolves the gate reports "authoritative catalog unavailable"
+  and exits 2 rather than substituting a built-in list. A self-check scans the gate's own
+  source for planted slot names and fails on any hit — a hardcoded list is circular
+  validation: it can confirm errors but cannot falsify them.
+
+### Reported by the gate on v2.1.2 as it stands (not fixed here)
+
+The gate is **red** on the current registration, which is the point. Against the pinned
+SDK catalog (`@deepseek-ai/dsh-cordis-client-runner@0.0.1-rc.3`, 42 keys — what a user
+actually installs):
+
+| Finding | What `apply()` does | What the SDK catalog says |
+|---|---|---|
+| `C1` | `inject('sidebar.right.pane.tab', …)` | that key does not exist in the pinned catalog |
+| `C4` | `register({ name, kind }, …)` on `sidebar.footer.action` / `conversation.view` | list slots require `id`; `kind` is not a register option |
+
+Also recorded: the pinned catalog and upstream `master` have drifted (42 vs 92 keys).
+Upstream has `sidebar.right.pane.tab` (`keyed`/`session`) but **not** `details`; the
+pinned version has `details` (`single`/`session`, occupied by `client-ui-conversation`
+`DetailsPanel`, `packages/client/ui-layout/src/client/index.ts:72`) but **not**
+`sidebar.right.pane.tab`. A release claim written against upstream will not land on the
+host a user actually runs. The gate validates against the pinned version and reports the
+drift as a warning.
+
+Nothing in the plugin's registration is changed by this entry — that is separate work.
+The gate's job is to stop a claim like these from shipping unchallenged again.
+
+
 ## [2.1.2] - 2026-10-03
 
 > **Cut because 2.1.1 repeated the exact mistake 2.1.0 made.** The slot-key fix

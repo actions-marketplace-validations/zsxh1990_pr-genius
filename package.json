@@ -47,7 +47,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsdown",
-    "prepublishOnly": "npm run build && npm test"
+    "smoke:release": "node scripts/release-smoke/runtime-smoke-gate.mjs",
+    "prepublishOnly": "npm run build && npm test && npm run smoke:release"
   },
   "dsh": {
     "bundle": {
