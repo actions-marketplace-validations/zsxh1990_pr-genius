@@ -45,7 +45,7 @@
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/",
+    "test": "node --test --experimental-strip-types test/*.ts",
     "build": "tsdown",
     "prepublishOnly": "npm run build && npm test"
   },
@@ -78,10 +78,21 @@
     "schemastery": "^3.18.0"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "~4.0.4",
     "@deepseek-ai/dsh": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.0.1-rc.1",
+    "@deepseek-ai/dsh-client-ui-cordis": "0.0.1-rc.3",
+    "@deepseek-ai/dsh-client-ui-slots": "0.0.1-rc.1",
+    "@deepseek-ai/dsh-cordis-client-runner": "0.0.1-rc.3",
+    "@deepseek-ai/dsh-session-projection": "0.0.1-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.4",
     "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "cordis": "4.0.0-rc.10",
     "oxlint": "^1.86.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
