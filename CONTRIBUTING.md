@@ -203,7 +203,7 @@ When opening an issue, please use the appropriate template:
 
 ## Community
 
-- **Discussions** — [GitHub Discussions](../../discussions)
+- **Issues** — [Issue Tracker](../../issues) (Discussions not yet enabled; open an issue instead)
 - **Code of Conduct** — [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 - **License** — [MIT](LICENSE)
 

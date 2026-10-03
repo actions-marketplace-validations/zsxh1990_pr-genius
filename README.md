@@ -12,7 +12,7 @@ mcp-name: io.github.zsxh1990/pr-genius
 
 # PR Genius — The advisor that knows which PRs get closed
 
-> **1355 loaded patterns across 61 repos. 100% quality pass rate.**
+> **943 loaded patterns across 67 repos.**
 > Clone → paste MCP config → ask "Should I open this PR to encode/httpx?"
 
 [![CI](https://github.com/zsxh1990/pr-genius/actions/workflows/validate.yml/badge.svg)](https://github.com/zsxh1990/pr-genius/actions/workflows/validate.yml)
@@ -21,6 +21,7 @@ mcp-name: io.github.zsxh1990/pr-genius
 [![License](https://img.shields.io/github/license/zsxh1990/pr-genius?style=flat&color=blueviolet)](https://github.com/zsxh1990/pr-genius/blob/main/LICENSE)
 [![Glama score](https://glama.ai/mcp/servers/zsxh1990/pr-genius/badges/score.svg)](https://glama.ai/mcp/servers/zsxh1990/pr-genius)
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-PR%20Genius-blue?logo=github)](https://github.com/marketplace/actions/pr-genius)
+[![DSH Plugin](https://img.shields.io/badge/DSH--plugin-pr--genius-blueviolet)](docs/dsh-integration.md)
 
 ---
 
@@ -29,6 +30,8 @@ mcp-name: io.github.zsxh1990/pr-genius
 PR Genius is **not** a PR dashboard. It's an **Outbound PR CRM** for professional OSS contributors and AI agents:
 
 > Manage PRs you've *submitted to other repos* — when to fix CI, rebase, wait, ping, or abandon.
+
+PR Genius is also a **DSH (Cordis) plugin** that slots into the DeepSeek Harness chat sidebar, advisor panel, session tab, and `/prgenius` slash-command. See [🧩 DSH Plugin](#-dsh-plugin) below.
 
 | Capability | `gh` CLI | PR Genius |
 |---|---|---|
@@ -53,10 +56,10 @@ PR Genius is **not** a PR dashboard. It's an **Outbound PR CRM** for professiona
 
 | Capability | LLM directly | Scraper Agent | PR Genius |
 |------------|-------------|---------------|-----------|
-| Knowledge source | Training data | Real-time scrape | 1355 structured patterns |
+| Knowledge source | Training data | Real-time scrape | 943 structured patterns |
 | Repo understanding | Generic | Surface data (stars) | 17-field agent_guidelines |
-| Failure patterns | Unknown | Unknown | 752 anti-patterns |
-| Success patterns | Unknown | Unknown | 703 success patterns |
+| Failure patterns | Unknown | Unknown | 251 anti-patterns |
+| Success patterns | Unknown | Unknown | 692 success patterns |
 | Maintainer preference | Guess | Recent PRs | Structured policy files |
 | Merge probability | Can't estimate | Can't estimate | Based on repo merge rate + signals |
 
@@ -211,7 +214,7 @@ updates:
 
 Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.1`
 
-### 12 MCP Tools
+### 13 MCP Tools
 
 | Tool | Purpose | Required Args |
 |------|---------|---------------|
@@ -225,7 +228,8 @@ Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.1`
 | `schema_info` | OKF schema versions | *(none)* |
 | `status_prs` | Outbound PR status heartbeat | `author` |
 | `profile_writeback_suggestions` | Profile update suggestions (dry-run) | `author` |
-| `maintainer_view` | Maintainer-side PR view | `repo` |
+| `maintainer_view` | Maintainer-side PR view (5 actions: `READY_FOR_REVIEW`, `WAIT_FOR_AUTHOR`, `CLOSE_DUPLICATE`, `CLOSE_STALE_OR_RISKY`, `HOLD_MAINTAINER_DECISION`) | `repo` |
+| `contributor_view` | Contributor readiness decision (5 actions: `READY_TO_SUBMIT`, `FIX_BEFORE_SUBMIT`, `NEEDS_DISCUSSION`, `IMPROVE_CHANCE`, `ASK_MAINTAINER`) | `repo` |
 | `review_queue` | Prioritized review queue | `repo` |
 
 ### Tool Parameter Notes
@@ -235,27 +239,51 @@ Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.1`
 - **`pr_description`** (optional): Additional PR body text for deeper analysis
 - **`query`** (required for `search_patterns`): Search keywords, e.g. `"connection timeout"`
 
+## 🧩 DSH Plugin
+
+PR Genius ships as a [DSH (Cordis)](https://github.com/deepseek-ai/dsh) plugin (v2.0.0+). The TypeScript layer is a thin shell — analysis is delegated to the existing Python MCP engine; the plugin adds four UI surfaces on top.
+
+### Install
+
+```bash
+dsh plugin add pr-genius
+```
+
+Or apply the one-line patch in [`cordis.patch.yml`](cordis.patch.yml). Full guide: [`docs/dsh-integration.md`](docs/dsh-integration.md).
+
+### Four surfaces
+
+| Surface | Slot | What it does |
+|---------|------|-------------|
+| **Dashboard** (sidebar) | `ui-sidebar` | PR Intelligence Dashboard — cross-repo status at a glance |
+| **Advisor tab** | `conversation.view` | Session-level advisor for the current conversation |
+| **Advisor panel** | `ui-sidebar` (panel mode) | Same advisor as a right-hand panel |
+| **`/prgenius`** | `ctx.command` | Slash-command for inline PR checks |
+
+Maintainer mode is the same four surfaces on a different projection (5-action decision: `READY_FOR_REVIEW`, `WAIT_FOR_AUTHOR`, `CLOSE_DUPLICATE`, `CLOSE_STALE_OR_RISKY`, `HOLD_MAINTAINER_DECISION`).
+
+### Configuration
+
+All tunables are Schemastery-validated and settable from `cordis.yml` — no code changes needed. Invalid values fail at load time naming the field. See [`src/config.ts`](src/config.ts) for the full schema (12 fields: MCP transport/endpoint/timeout, sidebar default view, maintainer confidence threshold, stale-days, locale, risk filter, etc.).
+
+### Relationship to v1.x
+
+The DSH plugin wraps the same Python analysis engine (`prgenius/src/prgenius/mcp.py`). v1.x CLI and MCP server continue to work unchanged. The plugin adds UI surfaces and config management; it does not fork the analysis logic.
+
+> **Honesty note**: The DSH plugin has been verified for TypeScript compilation, unit tests, and static contract conformance (`scripts/check_dsh_plugin_contract.py`, 27/27 checks). It has **not** been run against a live DSH runtime — rendering and runtime behavior require DSH verification. See [`docs/compatibility.md`](docs/compatibility.md) for the version matrix (every cell marked unrun) and [`docs/maturity-self-assessment.md`](docs/maturity-self-assessment.md) for the completeness scorecard.
+
 ## 📊 Data Scale
+
+> Numbers below are measured from the repo at the current commit. Run `python3 -c "from prgenius.parser import iter_profiles, iter_case_studies; from prgenius.evaluator import load_anti_patterns, load_success_patterns; print(len(list(iter_profiles('.'))), len(list(iter_case_studies('.'))), len(load_anti_patterns('.')), len(load_success_patterns('.')))"` to verify.
 
 | Dimension | Count |
 |-----------|-------|
-| Repo profiles | 61 |
-| Case studies | 50+ |
-| Success patterns | 687 (431 .md + 256 .json) |
-| Anti-patterns | 668 (561 .md + 107 .json) |
-| Total patterns | 1355 (all loaded) |
-| Quality pass rate | 100% (994/994 markdown ≥75分) |
-| Covered repos | 35+ (react, kubernetes, rust, uv, pydantic, etc.) |
-
-### 按仓库规模分布
-
-| 规模 | Success | Anti | 总计 |
-|------|---------|------|------|
-| 大仓 (>10k ⭐) | 208 | 205 | 413 |
-| 中仓 (1k-10k ⭐) | 169 | 88 | 257 |
-| 小仓 (<1k ⭐) | 169 | 88 | 257 |
-| 通用 | 203 | 414 | 617 |
-| 其他 (特定仓库) | 312 | 260 | 572 |
+| Repo profiles | 67 |
+| Case studies | 53 |
+| Success patterns | 692 (436 .md + 256 .json) |
+| Anti-patterns | 251 (61 .md + 190 .json) |
+| Total patterns | 943 (all loaded) |
+| Covered repos | 67 (uv, react, kubernetes, transformers, httpx, etc.) |
 
 ## 🤖 Robots / Agents
 
