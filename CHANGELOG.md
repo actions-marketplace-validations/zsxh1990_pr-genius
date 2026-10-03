@@ -5,6 +5,62 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 
 # Changelog
 
+
+## [2.1.3] - 2026-10-03
+
+> First release that a **runtime gate** signed off on. Everything before this was
+> verified by compiling or by grepping, and three of those releases shipped
+> claims that did not hold.
+
+### Added
+- **Release runtime smoke gate** (`npm run smoke:release`, wired into
+  `prepublishOnly` and `.github/workflows/release-smoke.yml`). Packs a real
+  tarball, unpacks it, imports the artifact entry, calls `apply()`, and compares
+  the calls it emits against DSH SDK's own `CLIENT_SLOT_API`. Exit 0 = the
+  release claims hold, 1 = they do not, 2 = unverifiable. (issue #96)
+- **Runtime slot probing.** The panel seat carries a candidate list and `apply()`
+  tries each key, keeping whichever the host accepts. If none is accepted the
+  surface is not registered — 宁缺勿假. No static slot name survives in the
+  registration path. (issue #97)
+- **Surfaces render real data.** Knowledge-base counts come from the corpus, the
+  advisor surfaces show real `coach` output, preferences show the 12 Config
+  fields' current values. Data reaches the UI through the MCP bridge; nothing is
+  reimplemented in TypeScript. (issue #98)
+
+### Fixed
+- `register` options for list slots carry `id`, not `kind` — the gate caught both.
+
+### What the gate found and what it means
+
+Two catalogs disagree, and the disagreement is not academic:
+
+| source | keys | `details` | `sidebar.right.pane.tab` |
+|---|---|---|---|
+| pinned npm package (what a user installs) | 42 | present | absent |
+| upstream `deepseek-harness@master` | 92 | absent | present |
+
+A user installs the pinned package. Rather than pick a side, the plugin probes.
+The gate's output after the change:
+
+```
+  ✓ sidebar.footer.action   list     root     required=[id]
+  ✓ conversation.view       list     session  required=[id]
+  ✓ details                 single   session  required=[]   ← probe chose the pinned key
+  ✓ settings.section        list     root     required=[id]
+  VERDICT: PASS_WITH_WARNINGS   exit 0   FAIL=0
+```
+
+The 2 warnings are the 50-key catalog drift (reported, never merged into one
+list — merging would validate against a catalogue no host has) and the
+degradation path the gate also exercises.
+
+### Honest boundary
+
+The gate proves `apply()` emits calls that land on SDK-declared seats with a
+non-null component. **It does not prove anything renders.** There is no
+`DEEPSEEK_API_KEY` on this machine and pr-genius has never loaded in a real DSH
+web host. Host-mounting behaviour still needs a real runtime.
+
 ## [Unreleased]
 
 ### Fixed
