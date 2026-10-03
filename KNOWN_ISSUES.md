@@ -2,7 +2,7 @@
 type: Schema Reference
 title: Known Issues
 description: pr-genius 已知数据瑕疵（待真实 PR 触发时一并修复）
-version: 1.8.0
+version: 2.1.5
 created: 2026-07-02
 updated: 2026-09-05
 ---
@@ -88,12 +88,11 @@ updated: 2026-09-05
 **修法时机**：每个 PR 闭环时，先用 GH API 拉 comments 重写 case study body  
 **优先级**：中
 
-### G. uv #19685 `status: merged` drift
+### G. uv #19685 `status: merged` drift ✅ FIXED (v0.7.3)
 
 **位置**：`astral-sh-uv/pr-19685-sarif-audit.md`  
 **问题**：frontmatter 写 `status: merged / merged_at: 2026-06-05`，GH API 实测 `state=closed, merged=False, closed_at=2026-06-05T14:43:54Z, merge_commit_sha=604822fb`，两者不一致。可能是当时被 squash/rebase 替换导致。原本状态要看 `merged = true ? "merged" : "closed-merged-or-not"`重新推导  
-**修法时机**：下次提 uv PR 时调 GH API 拉 PR #19685 重新对齐 status/merged 字段  
-**优先级**：中
+**修法**：v0.7.3 与 H/I/J 同批修 status drift（见下方 v0.7.3 小结「4 status drift 修复 (H/I/J/G 顶部 status 修)」）：frontmatter `status` / `final_status` 均改为 `closed-not-merged`。body 中的「结果：✅ merged」表述已一并改为 `closed-not-merged`，与 status 字段一致。
 
 ### H. agentic #1382 `status: open` 应是 merged ✅ FIXED (v0.7.2)
 
@@ -105,7 +104,7 @@ updated: 2026-09-05
 
 **位置**：`e2b-dev-e2b/pr-1413-rich-to-ansi.md`  
 **问题**：frontmatter `status: merged, merged_at: 2026-06-09`，但 GH API 实测 `state=closed, merged=False, closed_at=2026-06-09T18:38:28Z`。这是 refactor PR 被关闭但并未 merge，跟 title 描述「成功合并」不符。  
-**修法**：v0.7.3 修 frontmatter 为 `status: closed-not-merged` + 跟 sync `final_status`。body 中“成功合并”需要二次 review 可能需要改跟正文。
+**修法**：v0.7.3 修 frontmatter 为 `status: closed-not-merged` + 跟 sync `final_status`。body 中“成功合并”/「结果：✅ merged」等与 status 矛盾的表述已二次 review 改为 `closed-not-merged`（description 字段 + 结果行 + 时间线行）。
 
 ### J. agentic #1383 `status: open` 实际是 closed-merged ✅ FIXED (v0.7.3)
 

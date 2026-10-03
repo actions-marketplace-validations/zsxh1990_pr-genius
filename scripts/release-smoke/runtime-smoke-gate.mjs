@@ -17,6 +17,9 @@
  *   6. register 选项必须满足该 slot 基数（cardinality）的 required 项
  *   7. 再跑一遍「没有 slots 服务的宿主」，确认 apply() 保守降级（不注册、记 warn），
  *      而不是崩掉或者假装注册成功
+ *   8. 再跑一遍 denyRead 语义的宿主（真 guard 的复刻：直读未声明名抛、Reflect.has
+ *      恒 false、ctx.get 可选查找），确认 apply() 仍能注册四个界面 —— 这一条专治
+ *      「gate 看绿、真宿主空白」：旧 mock 把 slots 当字面量属性，绕开了 guard。
  *
  * ── 反循环纪律：slot 列表从哪来？───────────────────────────────────────
  * **不是代码里写死的。** 来自 `scripts/release-smoke/slot-catalog.mjs`，它去取
@@ -121,6 +124,89 @@ function makeRecordingHost({ withSlots }) {
     }
   }
   return { ctx, calls, log }
+}
+
+/**
+ * denyRead 语义的宿主 —— 专治「gate 看绿、真宿主是坏的」。
+ *
+ * 旧 mock 把 `slots` 当字面量属性挂在 ctx 上，`Reflect.has` 恒真、直读恒通，
+ * 绕开真宿主的 guard。真宿主里 apply() 收到 dynamicCordisContext 的白名单 facade
+ * （node_modules/@deepseek-ai/dsh-cordis-client-runner/lib/client.js）：
+ * 直读未声明名 → denyRead **抛**；`Reflect.has` 恒 false；`ctx.get` 是可选查找。
+ * 这里逐条复刻那三条，让「重新引入 Reflect.has + 直读探测」在发版门禁里立刻红。
+ * 与 test/fixtures/guarded-context.ts 是同一语义的两份实现（那边 TypeScript 给
+ * vitest 用，这边 JS 给 gate 用 —— gate 只测 tarball 产物，不能 import src/）。
+ *
+ * 诚实边界：真 guard 的 CTX_VERBS 不含 logger（client.js 205-216 行，upstream
+ * guard.ts 22-24 同），LoggerService 也不在 service store —— 所以这里**不**放行
+ * logger，与真 guard 一致。插件自己用 resolveLogger() 分流（Reflect.has 为真才
+ * 直读，否则 console 兜底），因此 apply() 跑得完。日志经 console 兜底，gate
+ * 在受控 console 上截获它们，而不是假装 facade 有 logger。
+ */
+function makeGuardedHost({ services = {} } = {}) {
+  const declared = new Set([]) // 本插件 inject: []
+  const getLog = []
+  const serviceTable = services // 活引用：构造后仍可填（slots 服务要记账到 calls）
+  const calls = { inject: [], register: [], provide: [], effect: [], warn: [], info: [], error: [] }
+  const logger = {
+    info: (...a) => calls.info.push(a.map(String).join(' ')),
+    warn: (...a) => calls.warn.push(a.map(String).join(' ')),
+    error: (...a) => calls.error.push(a.map(String).join(' ')),
+    debug: () => {},
+    trace: () => {},
+  }
+  const denyRead = (prop, present) => {
+    if (present) {
+      throw new Error(
+        `service "${prop}" is not declared by your plugin. Declare it on the plugin you return: ` +
+          `{ inject: ['${prop}', …], apply(ctx) { … } } — a plain \`function\` has no ` +
+          'declaration site, so use the object form. The runtime then parks the package ' +
+          'if the provider unloads.',
+      )
+    }
+    throw new Error(
+      `dynamic ctx does not expose "${prop}". Available: ctx.on / ctx.provide / timer ` +
+        'helpers after injecting timer, and any service your returned plugin declared in ' +
+        'inject (slots and theme are the usual UI seats). Framework internals are withheld ' +
+        'by design.',
+    )
+  }
+  const readService = (name, requireDeclaration) => {
+    if (requireDeclaration && !declared.has(name)) denyRead(name, name in serviceTable)
+    return serviceTable[name]
+  }
+  const target = {
+    // 不放 logger：真 guard 的 CTX_VERBS 里没有它。apply() 会经 resolveLogger
+    // 降级到 console 兜底，gate 用 withCapturedConsole 收日志。
+    provide: (name, service) => {
+      calls.provide.push({ name, serviceType: typeof service })
+      return () => calls.provide.push({ disposed: name })
+    },
+    effect: (fn) => {
+      const out = typeof fn === 'function' ? fn() : undefined
+      calls.effect.push({ returnedDisposers: Array.isArray(out) ? out.length : 0 })
+    },
+  }
+  const ctx = new Proxy(target, {
+    get(t, prop, receiver) {
+      if (prop === 'get') {
+        return (name) => {
+          getLog.push(name)
+          return readService(name, false)
+        }
+      }
+      if (typeof prop !== 'string') return Reflect.get(t, prop, receiver)
+      if (prop in t) return Reflect.get(t, prop, receiver)
+      return readService(prop, true) // 未声明名 → denyRead 抛
+    },
+    has(_t, prop) {
+      return prop === 'get' || (typeof prop === 'string' && (prop in target || declared.has(prop)))
+    },
+    set() {
+      throw new Error('dynamic ctx is read-only')
+    },
+  })
+  return { ctx, calls, getLog, services: serviceTable }
 }
 
 /** 跑一次 apply()，返回录到的调用。 */
@@ -274,6 +360,57 @@ function validateDegradation({ calls, runLabel }) {
   return findings
 }
 
+/**
+ * C6 —— denyRead 语义下也必须能注册（否则「gate 绿、真宿主空白」）。
+ * 只有经 ctx.get 探测才能通过；Reflect.has + 直读会在这里红。
+ */
+function validateGuarded({ calls, getLog, runLabel }) {
+  const findings = []
+  if (!getLog.includes('slots')) {
+    findings.push(makeFinding(
+      'C6.probe-not-via-ctx-get',
+      'FAIL',
+      'apply() 没有经 ctx.get 探测 slots',
+      `guard 语义下 Reflect.has 恒 false、直读抛错 —— 只有 ctx.get('slots') 是可选查找的正路。` +
+        `getLog=${JSON.stringify(getLog)}`,
+      { run: runLabel, getLog },
+    ))
+  }
+  if (calls.inject.length === 0) {
+    findings.push(makeFinding(
+      'C6.no-registration-under-guard',
+      'FAIL',
+      'guard 语义下一次 slot 注册都没发生',
+      '真 DSH 宿主的 apply() 收到的就是这种 facade。零注册 = 用户界面空白 —— ' +
+        '正是 issue #100 的形状。多半是探测退回了 Reflect.has + 直读。',
+      { run: runLabel, getLog, warns: calls.warn },
+    ))
+  }
+  for (const rec of calls.inject) {
+    if (rec.registers.length === 0 && !rec.factoryThrew) {
+      findings.push(makeFinding(
+        'C6.inject-without-register-under-guard',
+        'FAIL',
+        `guard 语义下 inject('${rec.slot}') 没有跟上 register`,
+        '占了名额不贡献组件，界面上是空白。',
+        { run: runLabel, slot: rec.slot },
+      ))
+    }
+    for (const reg of rec.registers) {
+      if (reg.componentIsNull) {
+        findings.push(makeFinding(
+          'C6.null-component-under-guard',
+          'FAIL',
+          `guard 语义下 register('${rec.slot}') 的组件是 null`,
+          '占座不渲染 —— v2.0.0/v2.1.0 的形状。',
+          { run: runLabel, slot: rec.slot },
+        ))
+      }
+    }
+  }
+  return findings
+}
+
 // ── 主流程 ────────────────────────────────────────────────────────────────
 function hr(line = '─') {
   return line.repeat(72)
@@ -297,6 +434,12 @@ const report = {
     '本 gate 证明 apply() 发出的调用落在 SDK 声明的座位上且组件非 null；不证明渲染正确。',
     '宿主是按 apply() 实际触碰的 Context 面构造的记录器，不是真 DSH web 宿主（需 DEEPSEEK_API_KEY，本机没有）。',
     '权威 slot catalog 来自 DSH SDK 的 CLIENT_SLOT_API，不是 pr-genius 内部任何表。',
+    'C6 的 denyRead 语义宿主是真 guard（dynamicCordisContext）的复刻：直读未声明名抛、' +
+      'Reflect.has 恒 false、ctx.get 可选查找。logger 也不放行（真 guard 的 CTX_VERBS ' +
+      '不含它，且 LoggerService 不在 service store）—— 插件经 resolveLogger() 降级到 ' +
+      'console 兜底，gate 在受控 console 上截获这些日志，而不是假装 facade 有 logger。',
+    '真 DSH web 宿主的挂载与渲染仍未验证（需 DEEPSEEK_API_KEY，本机没有）——' +
+      '见 issue #102 招募外部测试者。',
   ],
 }
 
@@ -461,6 +604,17 @@ if (SKIP_PACK) {
   mkdirSync(extractRoot, { recursive: true })
   execFileSync('tar', ['-xzf', tarballPath, '-C', extractRoot], { stdio: 'pipe' })
   const pkgDir = join(extractRoot, 'package')
+  // 宿主提供 peer 依赖（react / react-dom / cordis），所以产物把它们 external 了
+  // —— 内联 React 会让带自己 React 的宿主 hooks 崩（issue #101）。gate 模拟宿主：
+  // 把仓库 node_modules 链到解包目录，让 import 能解析到宿主侧的那些包。
+  // 不是把 React 重新打进产物 —— 那正是 #101 的修法要避开的。
+  const peersDir = join(pkgDir, 'node_modules')
+  try {
+    execFileSync('ln', ['-s', join(REPO_ROOT, 'node_modules'), peersDir], { stdio: 'pipe' })
+    console.log(`      · host peers provided via symlink → node_modules (react external, issue #101)`)
+  } catch (err) {
+    console.log(`      · WARN: could not link host node_modules: ${err && err.message}`)
+  }
   artifactEntry = join(pkgDir, 'dist', 'index.mjs')
   if (!existsSync(artifactEntry)) {
     throw new Error(`tarball 里没有 dist/index.mjs —— ` +
@@ -580,11 +734,89 @@ report.runs.push({
   degradeError,
 })
 
+// 4b. 调 apply()，denyRead 语义的宿主（真 guard 的复刻）────────────────────
+console.log(`\n[4b/5] 调 apply() —— denyRead 语义宿主（真 guard 复刻）…`)
+// slots 只进 services 表，**不**挂成 ctx 的字面量属性 —— 旧 mock 正是靠字面量绕开 guard 的。
+const guarded = makeGuardedHost()
+// 必须**就地**填 serviceTable —— `guarded.services = {...}` 会把属性换成新对象，
+// 闭包里的 serviceTable 仍是空表，get('slots') 就永远拿不到（C6 曾因此假红）。
+guarded.services.slots = {
+  inject: (slot, factory) => {
+    const rec = { slot, factoryCalled: false, registers: [] }
+    guarded.calls.inject.push(rec)
+    try {
+      const out = typeof factory === 'function' ? factory() : undefined
+      rec.factoryCalled = true
+      rec.factoryReturn = out === undefined ? 'undefined' : typeof out
+    } catch (err) {
+      rec.factoryThrew = String(err && err.message ? err.message : err)
+    }
+    return () => { rec.disposed = true }
+  },
+  register: (opts, component) => {
+    const rec = {
+      opts: opts === null ? null : typeof opts === 'object' ? JSON.parse(JSON.stringify(opts, (k, v) => (typeof v === 'function' ? '[function]' : v))) : String(opts),
+      componentType: component === null ? 'null' : component === undefined ? 'undefined' : typeof component,
+      componentIsNull: component === null || component === undefined,
+    }
+    const last = guarded.calls.inject[guarded.calls.inject.length - 1]
+    if (last) last.registers.push(rec)
+    guarded.calls.register.push(rec)
+    return () => { rec.disposed = true }
+  },
+}
+let guardedError = null
+// 真 guard facade 上没有 logger，插件降级到 console 兜底 —— 把 console 截获到
+// calls 里，否则降级日志（"ctx.slots unavailable…"）在报告里凭空消失。
+const consoleCapture = {
+  info: (...a) => guarded.calls.info.push(a.map(String).join(' ')),
+  warn: (...a) => guarded.calls.warn.push(a.map(String).join(' ')),
+  error: (...a) => guarded.calls.error.push(a.map(String).join(' ')),
+}
+const realConsole = { info: console.info, warn: console.warn, error: console.error }
+Object.assign(console, consoleCapture)
+try {
+  await runApply(artifactUrl, guarded)
+} catch (err) {
+  guardedError = String(err && err.message ? err.message : err)
+  report.findings.push(makeFinding(
+    'C6.guarded-apply-threw',
+    'FAIL',
+    '在 denyRead 语义宿主上 apply() 抛错',
+    `真 DSH 宿主就是这种 facade，抛错 = 用户装完插件直接失败。${guardedError}`,
+    { entry: artifactEntry, error: guardedError },
+  ))
+} finally {
+  Object.assign(console, realConsole)
+}
+console.log(`      · get 探测: ${JSON.stringify(guarded.getLog)}`)
+console.log(`      · inject ${guarded.calls.inject.length} 次, register ${guarded.calls.register.length}`)
+for (const rec of guarded.calls.inject) {
+  const comp = rec.registers.map((r) => r.componentType).join(',') || '(no register)'
+  console.log(`        ${rec.slot.padEnd(28)} component=${comp}`)
+}
+report.runs.push({
+  label: 'guarded-denyread',
+  injects: guarded.calls.inject.map((r) => ({ slot: r.slot, factoryCalled: r.factoryCalled, factoryThrew: r.factoryThrew ?? null, registers: r.registers })),
+  registers: guarded.calls.register,
+  warns: guarded.calls.warn,
+  infos: guarded.calls.info,
+  getLog: guarded.getLog,
+  guardedError,
+})
+
 // 5. 判定 ─────────────────────────────────────────────────────────────────
 console.log(`\n[5/5] 判定 …`)
 if (!applyError) {
   report.findings.push(...validate({ calls: withSlots.calls, catalog, injectDeclared, runLabel: 'with-slots' }))
   report.findings.push(...validateDegradation({ calls: noSlots.calls, runLabel: 'without-slots' }))
+}
+if (!guardedError) {
+  report.findings.push(...validateGuarded({
+    calls: guarded.calls,
+    getLog: guarded.getLog,
+    runLabel: 'guarded-denyread',
+  }))
 }
 
 const fails = report.findings.filter((f) => f.severity === 'FAIL')
@@ -597,6 +829,8 @@ report.summary = {
   catalogSource: catalog.source,
   injects: injCalls.length,
   registers: regs.length,
+  guardedInjects: guarded.calls.inject.length,
+  guardedRegisters: guarded.calls.register.length,
   failCount: fails.length,
   warnCount: warns.length,
   exitCode: report.exitCode,
@@ -642,6 +876,7 @@ console.log('\n' + hr('═'))
 console.log(`VERDICT: ${report.verdict}   (exit ${report.exitCode})`)
 console.log(hr('═'))
 console.log(`catalog keys=${report.summary.catalogKeys} source=${report.summary.catalogSource}  injects=${report.summary.injects} registers=${report.summary.registers}`)
+console.log(`guarded(denyRead) injects=${report.summary.guardedInjects} registers=${report.summary.guardedRegisters}`)
 console.log(`FAIL=${fails.length}  WARN=${warns.length}`)
 console.log('\n诚实边界：')
 for (const l of report.honestLimits) console.log(`  · ${l}`)

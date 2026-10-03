@@ -39,7 +39,8 @@ import {
   type CoachVerdict,
   type DashboardData,
 } from '../src/client/data.ts'
-import { slotRegisterDef } from '../src/client/slots.ts'
+import { slotRegisterDef, PREFERENCES_SLOT } from '../src/client/slots.ts'
+import { makeGuardedHost } from './fixtures/guarded-context.ts'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const PY_SRC = join(ROOT, 'prgenius', 'src')
@@ -229,6 +230,13 @@ describe('Preferences renders the effective config', () => {
     assert.ok(markup.includes(info.riskFilter), 'riskFilter not rendered')
     assert.ok(markup.includes(String(info.maintainer.staleDays)), 'staleDays not rendered')
     assert.ok(markup.includes('data-field="effective-config"'))
+    // data-slot 必须是 preferences 真正的落座（SURFACE_PLAN 的 settingsSection），
+    // 不是 dashboard 的脚部席 —— PREFERENCES_SLOT 曾误写成 sidebar.footer.action。
+    assert.ok(
+      markup.includes(`data-slot="${PREFERENCES_SLOT}"`),
+      `preferences markup must carry its real seat, got: ${markup.slice(0, 200)}`,
+    )
+    assert.equal(PREFERENCES_SLOT, 'settings.section', 'PREFERENCES_SLOT must match SURFACE_PLAN')
   })
 })
 
@@ -282,4 +290,102 @@ describe('apply() wires the real service into real components', () => {
 
     await fiber.dispose()
   }, 180_000)
+})
+
+describe('apply() survives the DSH guard (denyRead semantics)', () => {
+  // 为什么要有这一层：旧 mock 把 `slots` 当字面量属性挂在 ctx 上，`Reflect.has`
+  // 恒真、直读恒通 —— 绕开真宿主的 guard。真宿主里 apply() 收到的是
+  // dynamicCordisContext 的白名单 facade（见 test/fixtures/guarded-context.ts 的
+  // 权威依据），Reflect.has 恒 false、直读抛错。这一层让「重新引入 Reflect.has
+  // + 直读探测」立刻红，而不是等到用户侧界面空白。
+  it('the guarded mock really denies undeclared direct reads and has', () => {
+    const { ctx } = makeGuardedHost({
+      services: { slots: { inject: () => () => {}, register: () => () => {} } },
+    })
+    // 1. 直读未声明名 → 抛 guard 原文消息（不是返回 undefined）
+    assert.throws(
+      () => (ctx as { slots: unknown }).slots,
+      (err: unknown) => {
+        assert.match(String(err), /is not declared by your plugin/)
+        assert.match(String(err), /inject: \['slots'/)
+        return true
+      },
+    )
+    // 2. Reflect.has 恒 false（真 guard 的 has trap 只答 declared）
+    assert.equal(Reflect.has(ctx, 'slots'), false, 'Reflect.has must not see undeclared services')
+    // 3. ctx.get 是可选查找：提供则得、未提供则 undefined，不抛
+    const g = (ctx as { get: (n: string) => unknown }).get
+    assert.ok(g('slots'), 'ctx.get must find the provided service')
+    assert.equal(g('command'), undefined, 'ctx.get must return undefined for absent services')
+  })
+
+  it('apply() registers all four slot surfaces through ctx.get, not Reflect.has', () => {
+    const registered: Array<{ slot: string; def: Record<string, unknown>; component: unknown }> = []
+    const fakeSlots = {
+      inject: (_slot: string, factory: () => unknown) => {
+        factory()
+        return () => undefined
+      },
+      register: (def: unknown, component: unknown) => {
+        const d = def as { name: string }
+        registered.push({ slot: d.name, def: d as Record<string, unknown>, component })
+        return () => undefined
+      },
+    }
+    const host = makeGuardedHost({ services: { slots: fakeSlots } })
+    // 服务只在 services 表里，**没有**挂成 ctx 的字面量属性 —— 旧路径读不到。
+    prGenius.apply(host.ctx as never, parseConfig({}))
+
+    // 断言走的是 ctx.get 路径：slots 必须出现在 getLog 里
+    assert.ok(
+      host.getLog.includes('slots'),
+      `apply() must probe slots via ctx.get; getLog=${JSON.stringify(host.getLog)}`,
+    )
+    // 四个界面都注册上了 —— Reflect.has 回归会让这里变成 0
+    assert.equal(
+      registered.length,
+      4,
+      `expected 4 slot registrations via ctx.get, got ${registered.length} (${JSON.stringify(registered.map((r) => r.slot))})`,
+    )
+    for (const entry of registered) {
+      assert.equal(typeof entry.component, 'function', `component for ${entry.slot} is not a function`)
+      assert.equal(entry.def.name, entry.slot, 'register options.name must be the slot key')
+    }
+    // 命令面在真 guard 下拿不到（ctx.get('command') 为 undefined）—— 必须降级不抛
+    assert.ok(
+      host.getLog.includes('command'),
+      'command surface must also be probed via ctx.get',
+    )
+    assert.equal(
+      registered.filter((r) => r.slot === 'pr-genius').length,
+      0,
+      'command is not a slot — must not invent a slot registration',
+    )
+  })
+
+  it('a host without slots degrades quietly under guard semantics too', () => {
+    const host = makeGuardedHost({}) // 没有 slots 服务
+    assert.doesNotThrow(() => prGenius.apply(host.ctx as never, parseConfig({})))
+    assert.ok(host.getLog.includes('slots'), 'still probes via ctx.get')
+  })
+
+  it('logger is not on the guard facade — apply() must not die on ctx.logger', () => {
+    // 真 guard 的 CTX_VERBS 不含 logger，LoggerService 也不在 service store。
+    // 所以 `ctx.logger(...)` 直读会 denyRead 抛错在 apply() 第一行，把 ctx.get
+    // 的探测整个抵消掉。这个用例钉死：logger 拿不到时 apply() 仍然跑完。
+    const host = makeGuardedHost({
+      services: { slots: { inject: () => () => {}, register: () => () => {} } },
+    })
+    // 先证明 mock 的 logger 语义确实与真 guard 一致（防止有人把 logger 加回白名单）
+    assert.throws(
+      () => (host.ctx as { logger: unknown }).logger,
+      (err: unknown) => {
+        assert.match(String(err), /does not expose "logger"|is not declared by your plugin/)
+        return true
+      },
+    )
+    assert.equal(Reflect.has(host.ctx, 'logger'), false, 'Reflect.has must not see logger')
+    // logger 取不到，apply() 仍必须完整跑完并注册界面
+    assert.doesNotThrow(() => prGenius.apply(host.ctx as never, parseConfig({})))
+  })
 })

@@ -57,6 +57,17 @@ jobs:
           node-version: '22'
           cache: pnpm
 
+      # test/surface-data.test.ts 拉起真的 Python FastMCP 子进程取数
+      # （service.callTool → prgenius/src/prgenius/mcp.py）。没有 Python 侧，
+      # MCP server 起不来就 exit 1，两个用例报 "pr-genius MCP server exited
+      # (code=1)" —— 这条工作流此前从未绿过，正是因为漏了这一步。
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install Python package (mcp engine)
+        run: pip install -e "prgenius[dev,mcp]"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

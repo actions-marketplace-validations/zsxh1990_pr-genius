@@ -25,7 +25,7 @@ confidence: high
 | 2 | **Advisor Tab**（`conversation.view`） | 🟡 部分 | 同上 |
 | 3 | **Advisor Panel**（右栏） | 🟡 部分 | 同上 |
 | 4 | **`/prgenius` 命令** | 🟢 完成 | `ctx.command` 已接、`callTool('coach_pr', …)` 透传、测试覆盖 |
-| 5 | **Preferences / Configuration 卡** | 🟡 部分 | Config schema 完备（12 字段全带默认值 + 非法即失败）；UI 卡待运行时 |
+| 5 | **Preferences / Configuration 卡** | 🟡 部分 | Config schema 完备（14 字段全带默认值 + 非法即失败）；UI 卡待运行时 |
 | 6 | **一条命令装** | 🟢 完成 | `package.json` 的 `dsh.bundle` + 真实 `cordis.patch.yml` |
 | 7 | **零构建零重启** | 🟡 部分 | 契约如此（配置变更→增量热替换）；**未跑验证** |
 | 8 | **EN + 中文** | 🟢 完成 | `locale/en.json` + `locale/zh-CN.json`，键一一对应 |
@@ -101,10 +101,10 @@ confidence: high
 
 | # | 判据 | 状态 | 证据 |
 |---|---|---|---|
-| 1 | **无硬编码可调参数** | 🟢 完成 | 每个可调值都是 Config 字段并带 `.default()`。检验标准「能否在 `cordis.yml` 里改而不用改代码」逐字段过 —— `mcp.*` / `sidebar.defaultView` / `maintainer.*` / `locale` / `riskFilter` / `kbRoot` 共 12 个，全部可以在装配文件里改。`check_dsh_plugin_contract.py` 扫描源码内联阈值，当前无可疑项 |
+| 1 | **无硬编码可调参数** | 🟢 完成 | 每个可调值都是 Config 字段并带 `.default()`。检验标准「能否在 `cordis.yml` 里改而不用改代码」逐字段过 —— `mcp.*` / `sidebar.defaultView` / `maintainer.*` / `locale` / `riskFilter` / `kbRoot` 共 14 个，全部可以在装配文件里改。`check_dsh_plugin_contract.py` 扫描源码内联阈值，当前无可疑项 |
 | 2 | **配置错误要响亮** | 🟢 完成 | `PrGeniusConfigError` 带字段路径（含数组元素下标 `maintainer.actions.0`）；schema 在加载时校验，非法即失败、不带病运行。测试覆盖 12 个非法输入分支 |
 | 3 | **两侧共用一套数据层，无第二套抽象** | 🟢 完成 | 维护者模式是**同一组界面的另一投影**，不是第二套界面：共用 `kb.ts` 与 `mcp-client.ts`，切换只换渲染。`SURFACE_PLAN` 里五个界面全部 `mode: 'both'` |
-| 4 | **分析引擎唯一，TS 只投影** | 🟢 完成 | Python 侧 `prgenius/src/prgenius/mcp.py` 的 10 个工具是唯一引擎。TS 侧 `mcp-client.ts` 只做 JSON-RPC 传输与超时控制；`kb.ts` 只做静态文件路径。**风险判定、structural checks、5-action 路由一行都没在 TS 里重写** |
+| 4 | **分析引擎唯一，TS 只投影** | 🟢 完成 | Python 侧 `prgenius/src/prgenius/mcp.py` 的 14 个工具是唯一引擎。TS 侧 `mcp-client.ts` 只做 JSON-RPC 传输与超时控制；`kb.ts` 只做静态文件路径。**风险判定、structural checks、5-action 路由一行都没在 TS 里重写** |
 
 **轴二 = 4 / 4 = 100%**
 
@@ -132,7 +132,7 @@ Maintainer 13.5 ≈ 91（S 级）。其中：
 |---|---|
 | **Activity** | **不自评、不伪造。** 这是提交频率与活跃度的社区统计，需要真实时间跨度 |
 | **Star heat** | **不自评、不伪造。** dsh-context 的 28.6 分来自 1,802 star / 21.4 万下载。pr-genius 现在是 star 2 |
-| **Engineering** | 可自证的部分见轴二：工具链齐（tsdown + oxlint + node:test + 严格 tsconfig）、契约符合性 **27/27**、34 测试全绿 |
+| **Engineering** | 可自证的部分见轴二：工具链齐（tsdown + oxlint + vitest + 严格 tsconfig）、契约符合性 **27/27**、69 个测试 68 通过 + 1 跳过 |
 | **Maintainer** | 可自证的部分：`docs/compatibility.md`、`locale/`、MIT、版本单一来源（`prgenius/pyproject.toml` → `sync_version.py` 扇出到 server.json/glama.json/package.json/Dockerfile） |
 | | ⚠️ **更正**：本节早先写过「此前完全没有打包清单」——**那是错的**。清单一直在 `prgenius/pyproject.toml`（包名 `prgenius-core`，为避开 PyPI 同名冲突而改名），我只查了仓根就下了结论，还在 commit message 里写了一遍。发版前自查时发现，已删除误建的根 `pyproject.toml` 重复件。**教训：断言「某个文件不存在」前要 find 全仓，不能只看一层。** |
 

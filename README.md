@@ -2,7 +2,7 @@
 type: Knowledge Bundle
 title: PR Genius — Pre-submission PR Advisor
 description: Evidence-backed PR contribution advisor for large open-source projects
-version: 1.9.1
+version: 2.1.5
 created: 2026-07-01
 updated: 2026-09-05
 author: zsxh1990
@@ -34,7 +34,7 @@ PR Genius is **not** a PR dashboard. It's an **Outbound PR CRM** for professiona
 
 > Manage PRs you've *submitted to other repos* — when to fix CI, rebase, wait, ping, or abandon.
 
-PR Genius is also a **DSH (Cordis) plugin** that slots into the DeepSeek Harness chat sidebar, advisor panel, session tab, and `/prgenius` slash-command. See [🧩 DSH Plugin](#-dsh-plugin) below.
+PR Genius is also a **DSH (Cordis) plugin** that slots into the DeepSeek Harness chat sidebar, advisor panel, session tab, preferences section, and `/prgenius` slash-command. See [🧩 DSH Plugin](#-dsh-plugin) below.
 
 | Capability | `gh` CLI | PR Genius |
 |---|---|---|
@@ -125,7 +125,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: zsxh1990/pr-genius@v1
+      - uses: zsxh1990/pr-genius@v2.1.4
         id: pr-genius
         with:
           title: ${{ github.event.pull_request.title }}
@@ -145,13 +145,15 @@ comment (mirrors pr-agent's `/review`):
 > **Legacy**: `comment_on_high_risk: true` is still supported and behaves like
 > `comment_mode: high_risk`.
 
-### Version Auto-Update
+### Version Pins
 
-- **`@v1`** — Always points to the latest `v1.x.x` release (recommended)
-- **`@v1.9.1`** — Pinned to specific version (for reproducibility)
+- **`@v2.1.4`** — Pinned to a specific release tag (for reproducibility)
 - **`@main`** — Latest development version (not recommended for production)
 
-The `v1` tag is automatically updated when a new version is published to PyPI.
+> **No floating major tag tracks 2.x.** The only floating major tag is `v1`, and
+> its auto-update is gated on `v1.*` releases (`publish-pypi.yml`), so it is
+> frozen at `v1.8.0` — it does **not** follow `v1.9.x`, and there is no `v2` tag.
+> Pin a full `vX.Y.Z` tag instead of relying on a floating major.
 
 ### Docker Image (Alternative)
 
@@ -180,11 +182,11 @@ jobs:
           args: coach "${{ github.event.pull_request.title }}" --repo ${{ github.repository }} --format json
 ```
 
-**Docker Image Tags:**
+**Docker Image Tags** (emitted by `publish-ghcr.yml` from each `vX.Y.Z` git tag as `{version}` / `{major}.{minor}` / `{major}`):
 - `ghcr.io/zsxh1990/pr-genius:latest` — Latest release
-- `ghcr.io/zsxh1990/pr-genius:1.9.1` — Specific version
-- `ghcr.io/zsxh1990/pr-genius:1.9` — Minor version
-- `ghcr.io/zsxh1990/pr-genius:1` — Major version (auto-updated)
+- `ghcr.io/zsxh1990/pr-genius:2.1.4` — Specific version
+- `ghcr.io/zsxh1990/pr-genius:2.1` — Minor version
+- `ghcr.io/zsxh1990/pr-genius:2` — Major version
 
 **Auto-update with Dependabot:**
 
@@ -215,7 +217,7 @@ updates:
 }
 ```
 
-Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.1`
+Docker (stdio MCP server, built from the root `Dockerfile`): `docker build -t pr-genius . && docker run --rm -i pr-genius` — this image is a stdio server, not an HTTP service. (The `ghcr.io/zsxh1990/pr-genius` image is built from `Dockerfile.github_action` for the GitHub Action, not for MCP stdio.)
 
 ### 14 MCP Tools
 
@@ -226,14 +228,14 @@ Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.1`
 | `triage_pr` | Maintainer policy check (9 rules) | `title`, `repo` |
 | `get_repo_profile` | Repo profile (17 fields) | `repo` |
 | `list_open_prs` | Local open **case-study records** (not live GitHub PRs; live ones → `status_prs`); optional `repo`/`author` filters | *(none)* |
-| `get_case_study` | PR case study details | `case_id` |
+| `get_case_study` | PR case study details | `repo`, `pr_number` |
 | `search_patterns` | Anti-pattern/success-pattern search | `query` |
 | `schema_info` | OKF schema versions | *(none)* |
-| `status_prs` | Outbound PR status heartbeat | `author` |
+| `status_prs` | Outbound PR status heartbeat | `author` or `repo` |
 | `profile_writeback_suggestions` | Profile update suggestions (dry-run) | `author` |
-| `maintainer_view` | Maintainer-side PR view (5 actions: `READY_FOR_REVIEW`, `WAIT_FOR_AUTHOR`, `CLOSE_DUPLICATE`, `CLOSE_STALE_OR_RISKY`, `HOLD_MAINTAINER_DECISION`) | `repo` |
-| `contributor_view` | Contributor readiness decision (5 actions: `READY_TO_SUBMIT`, `FIX_BEFORE_SUBMIT`, `NEEDS_DISCUSSION`, `IMPROVE_CHANCE`, `ASK_MAINTAINER`) | `repo` |
-| `review_queue` | Prioritized review queue | `repo` |
+| `maintainer_view` | Maintainer-side PR view (5 actions: `READY_FOR_REVIEW`, `WAIT_FOR_AUTHOR`, `CLOSE_DUPLICATE`, `CLOSE_STALE_OR_RISKY`, `HOLD_MAINTAINER_DECISION`) | `title`, `repo` |
+| `contributor_view` | Contributor readiness decision (5 actions: `READY_TO_SUBMIT`, `FIX_BEFORE_SUBMIT`, `NEEDS_DISCUSSION`, `IMPROVE_CHANCE`, `ASK_MAINTAINER`) | `title`, `repo` |
+| `review_queue` | Prioritized review queue | `prs` or `prs_file` |
 | `prgenius_doctor` | Install/data/MCP self-test — run this when analyze returns nothing | *(none)* |
 
 ### Tool Parameter Notes
@@ -247,7 +249,7 @@ Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.1`
 
 ## 🧩 DSH Plugin
 
-PR Genius ships as a [DSH (Cordis)](https://github.com/deepseek-ai/dsh) plugin (v2.0.0+). The TypeScript layer is a thin shell — analysis is delegated to the existing Python MCP engine; the plugin adds four UI surfaces on top.
+PR Genius ships as a [DSH (Cordis)](https://github.com/deepseek-ai/dsh) plugin (v2.0.0+). The TypeScript layer is a thin shell — analysis is delegated to the existing Python MCP engine; the plugin adds five UI surfaces on top.
 
 ### Install
 
@@ -257,20 +259,21 @@ dsh plugin add pr-genius
 
 Or apply the one-line patch in [`cordis.patch.yml`](cordis.patch.yml). Full guide: [`docs/dsh-integration.md`](docs/dsh-integration.md).
 
-### Four surfaces
+### Five surfaces
 
 | Surface | Slot | What it does |
 |---------|------|-------------|
-| **Dashboard** (sidebar) | `ui-sidebar` | PR Intelligence Dashboard — cross-repo status at a glance |
+| **Dashboard** (sidebar) | `sidebar.footer.action` | PR Intelligence Dashboard — cross-repo status at a glance |
 | **Advisor tab** | `conversation.view` | Session-level advisor for the current conversation |
-| **Advisor panel** | `ui-sidebar` (panel mode) | Same advisor as a right-hand panel |
-| **`/prgenius`** | `ctx.command` | Slash-command for inline PR checks |
+| **Advisor panel** | `details` (pinned SDK) / `sidebar.right.pane.tab` (upstream) — probed at runtime | Same advisor as a right-hand panel |
+| **`/prgenius`** | `ctx.command` (Cordis command API, not a slot) | Slash-command for inline PR checks |
+| **Preferences** | `settings.section` | Config card for the tunables below |
 
-Maintainer mode is the same four surfaces on a different projection (5-action decision: `READY_FOR_REVIEW`, `WAIT_FOR_AUTHOR`, `CLOSE_DUPLICATE`, `CLOSE_STALE_OR_RISKY`, `HOLD_MAINTAINER_DECISION`).
+Maintainer mode is the same five surfaces on a different projection (5-action decision: `READY_FOR_REVIEW`, `WAIT_FOR_AUTHOR`, `CLOSE_DUPLICATE`, `CLOSE_STALE_OR_RISKY`, `HOLD_MAINTAINER_DECISION`).
 
 ### Configuration
 
-All tunables are Schemastery-validated and settable from `cordis.yml` — no code changes needed. Invalid values fail at load time naming the field. See [`src/config.ts`](src/config.ts) for the full schema (12 fields: MCP transport/endpoint/timeout, sidebar default view, maintainer confidence threshold, stale-days, locale, risk filter, etc.).
+All tunables are Schemastery-validated and settable from `cordis.yml` — no code changes needed. Invalid values fail at load time naming the field. See [`src/config.ts`](src/config.ts) for the full schema (14 leaf fields: `kbRoot`, MCP `transport`/`command`/`args`/`url`/`timeoutMs`/`protocolVersion`, sidebar default view, maintainer `enabled`/`actions`/`confidenceMin`/`staleDays`, locale, risk filter).
 
 ### Relationship to v1.x
 

@@ -2,7 +2,7 @@
 type: Knowledge Bundle
 title: PR Genius — 提交前改进顾问
 description: 大型开源项目 PR 知识库 + 提交前改进顾问，Agent 可读结构化数据
-version: 1.3.0
+version: 2.1.5
 created: 2026-07-01
 updated: 2026-07-22
 author: zsxh1990
@@ -62,7 +62,7 @@ python3 -m prgenius triage "docs: typo" --repo org/repo --diff-stat "docs/faq.md
 }
 ```
 
-### 8 个 MCP Tools
+### 14 个 MCP Tools
 
 | Tool | 用途 |
 |------|------|
@@ -70,10 +70,16 @@ python3 -m prgenius triage "docs: typo" --repo org/repo --diff-stat "docs/faq.md
 | `coach_pr` | go/no-go 决策（pass/fail） |
 | `triage_pr` | 维护者政策检查（9 条规则） |
 | `get_repo_profile` | 仓库画像（17 字段） |
-| `list_open_prs` | open PR 列表 |
+| `list_open_prs` | 本地 open case-study 记录（非实时 GitHub PR） |
 | `get_case_study` | PR 案例详情 |
 | `search_patterns` | 反模式/成功模式搜索 |
 | `schema_info` | OKF schema 版本 |
+| `status_prs` | 出向 PR 状态心跳（9 状态分类） |
+| `profile_writeback_suggestions` | 画像回写建议（dry-run） |
+| `maintainer_view` | 维护者侧决策（5 action） |
+| `contributor_view` | 贡献者就绪决策（5 action） |
+| `review_queue` | 优先级 review 队列 |
+| `prgenius_doctor` | 安装/数据/MCP 自检 |
 
 ## 📊 数据规模
 

@@ -7,7 +7,7 @@ description: A 克莱恩 2026-07-05 22:45 published companion piece to README.md
   uv#19685, agentic#1382/#1383.
 audience: coding agents + solo developers + maintainers of large open-source projects
 license: MIT
-version: 0.7.6
+version: 2.1.5
 created: 2026-07-05
 updated: 2026-10-03
 data-freshness: 2026-10-03
@@ -78,7 +78,7 @@ pr-genius/
 ├── prgenius/                          # the installable package
 │   └── src/prgenius/                  # CLI + stdio MCP shell
 │       ├── cli.py                     # subcommands: profile/case/schema/dump/mcp
-│       ├── mcp.py                     # 4 MCP tools
+│       ├── mcp.py                     # 14 MCP tools
 │       └── parser.py                  # pure-stdlib YAML-subset
 ├── <org>-<repo>/                      # 67 of these
 │   ├── index.md                       # the Repo Profile (frontmatter + narrative)
@@ -122,7 +122,7 @@ can:
 4. Re-emit a similar PR if asked — or better, recognise when
    *this repo is not a good fit* for that shape of work and skip it.
 
-The MCP shell exposes four tools that wrap steps 1–4 above:
+The MCP shell exposes 14 tools; four of them wrap steps 1–4 above:
 
 - `get_repo_profile(repo)` — fetch a single Repo Profile by `org/name`
 - `list_open_prs()` — every Case Study currently `final_status: open`

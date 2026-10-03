@@ -1,14 +1,15 @@
 /**
- * slot key 与上游 DSH slot-catalog 的对齐验证（issue #97）。
+ * slot 探测机制验证 —— 权威是运行时，不是任何一份 catalog（issue #97）。
  *
- * 非循环验证的要点：
+ * 历史教训（非循环验证仍然成立）：
  *   allowed 集合**不写在本文件里**，也不来自插件自己的常量 —— 它是把
  *   `test/fixtures/dsh-slot-catalog.ts`（上游 bytes 的快照）当纯文本解析出来的。
- *   插件说要用的 key 必须出现在上游 bytes 里，才算通过；拿插件自己的表去自证
- *   是循环验证（v2.1.2 的"验证 harness"就是这么骗过自己的）。
+ *   拿插件自己的表去自证是循环验证（v2.1.2 的"验证 harness"就是这么骗过自己的）。
+ * 但「key 必须出现在上游 bytes 里」本身不再是判据：pinned SDK 与 upstream master
+ * 的 catalog 不一致（42 vs 92 keys），对着任一份写死都会被对方更新推翻。
  *
  * 跑的是 apply() 真实注册路径：宿主提供 slots.inject/register 记录器，
- * 逐个打印实际注入的 key，再与上游解析结果对照。
+ * 判据是**探测机制** —— 发出注册、register.name 是 slot key、宿主拒绝的候选被跳过。
  */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -20,9 +21,8 @@ import { parseConfig } from '../src/config.ts'
 import {
   CATALOG_PROVENANCE,
   CONFIRMED_SLOT_KEYS,
-  isConfirmedSlotKey,
 } from '../src/ui/slot-catalog.ts'
-import { SURFACE_IDS, planRegistrations, registrationCalls } from '../src/ui/surfaces.ts'
+import { SURFACE_IDS, planRegistrations } from '../src/ui/surfaces.ts'
 import { SLOT_DECLARATIONS } from '../src/client/slots.ts'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -107,7 +107,11 @@ function recordingHost() {
   return { ctx, calls, logs }
 }
 
-describe('slot keys align with the upstream DSH slot catalog', () => {
+describe('slot probing: authority is the runtime, not any one catalog', () => {
+  // 前提（option C）：pinned SDK 与 upstream master 的 catalog 不一致（42 vs 92
+  // keys），两者都自称权威。对着任一份写死判据，会在对方更新时被推翻——issue #97
+  // 就是这么翻的车。所以这里的判据是**探测机制**：发出注册、name 是 slot key、
+  // 宿主拒绝的候选会被跳过。不判「key 在不在某份 catalog 里」。
   it('the fixture really is the upstream catalog (shape + provenance)', () => {
     assert.ok(catalogText.includes('CLIENT_SLOT_API'), 'fixture must be the upstream catalog module')
     assert.ok(
@@ -121,93 +125,66 @@ describe('slot keys align with the upstream DSH slot catalog', () => {
     assert.deepEqual(keys, [...keys].sort(), 'upstream catalog is sorted by key')
   })
 
-  it("the issue's claimed `details` key does NOT exist in the authority (premise of #97 is wrong)", () => {
-    assert.equal(ALLOWED.has('details'), false, "`details` is not a key in the upstream catalog")
-    // `sidebar.right.pane.tab` —— issue #97 断言"不存在"的 key —— 实际存在
-    const pane = CATALOG.get('sidebar.right.pane.tab')
-    assert.ok(pane, 'sidebar.right.pane.tab IS in the upstream catalog')
-    assert.equal(pane.kind, 'keyed')
-    assert.equal(pane.scope, 'session')
-  })
-
-  it('the plugin only ever registers keys that exist in the authority', () => {
-    const { ctx, calls } = recordingHost()
-    // 直接走 apply() —— 用户实际执行的注册路径
-    prGenius.apply(ctx as never, parseConfig({}))
-    assert.ok(calls.length > 0, 'apply() must actually attempt slot registrations')
-
-    for (const call of calls) {
-      const entry = CATALOG.get(call.inject)
-      assert.ok(
-        entry,
-        `injected key "${call.inject}" is NOT in the upstream catalog — refusing an invented slot name`,
-      )
-      // register options 的 `name` 必须就是 slot key（上游 example 的形状）
-      assert.equal(
-        call.registerOptions?.name,
-        call.inject,
-        `register options.name must be the slot key (${call.inject})`,
-      )
-      // 基数要求的 cell 选项必须在场，且名字正确
-      const required = [...entry.options.entries()].filter(([, r]) => r === 'required').map(([n]) => n)
-      for (const opt of required) {
-        assert.ok(
-          call.registerOptions && opt in call.registerOptions,
-          `${call.inject} is ${entry.kind} and requires register option "${opt}"`,
-        )
+  it('candidate lists are non-empty wherever a surface can probe', () => {
+    // 不判 key 合法性；判「有得可试」。候选为空等于没得探测。
+    for (const surface of planRegistrations()) {
+      if (!surface.seat) continue
+      const cands = (surface.seat as { candidates?: string[] }).candidates
+      if (cands !== undefined) {
+        assert.ok(cands.length > 0, `${surface.id}: candidates must be non-empty`)
       }
-      // 一次也不该塞进臆造的 kind/scope 之类的非选项字段
-      for (const field of ['kind', 'scope']) {
-        assert.ok(
-          !(call.registerOptions && field in call.registerOptions),
-          `${field} is not a register option (it belongs to the children declaration)`,
-        )
-      }
-      console.log(
-        `  ✓ inject(${call.inject}) kind=${entry.kind}/${entry.scope} opts=${JSON.stringify(call.registerOptions)}`,
-      )
+      assert.ok(surface.seat.key, `${surface.id}: seat must name a key to probe`)
     }
   })
 
-  it('every planned surface seat exists in the authority, and unmatched surfaces are reported', () => {
+  it('apply() probes: it attempts registrations and uses the slot key as register.name', () => {
+    const host = recordingHost()
+    prGenius.apply(host.ctx as never, parseConfig({}))
+    const attempts = host.calls
+    assert.ok(attempts.length > 0, 'apply() must attempt slot registrations')
+    for (const call of attempts) {
+      assert.ok(call.inject, 'probe must attempt some slot key')
+      assert.equal(call.registerOptions?.name, call.inject,
+        `register options.name must be the slot key (${call.inject})`)
+      for (const field of ['kind', 'scope']) {
+        assert.ok(!(call.registerOptions && field in call.registerOptions),
+          `${field} is not a register option (it belongs to the children declaration)`)
+      }
+      assert.ok(call.component !== null, `component for ${call.inject} must not be null`)
+    }
+  })
+
+  it('every surface either names a probeable seat or is the command surface', () => {
     const withoutSeat: string[] = []
     for (const surface of planRegistrations()) {
-      if (!surface.seat) {
-        withoutSeat.push(surface.id)
-        continue
-      }
-      assert.ok(
-        ALLOWED.has(surface.seat.key),
-        `surface ${surface.id} points at unknown slot ${surface.seat.key}`,
-      )
-      const entry = CATALOG.get(surface.seat.key)!
-      assert.equal(surface.seat.kind, entry.kind, `${surface.seat.key} kind must match the catalog`)
-      assert.equal(surface.seat.scope, entry.scope, `${surface.seat.key} scope must match the catalog`)
-      if (surface.seat.titleKey) {
-        assert.ok(ALLOWED.has(surface.seat.titleKey), `title seat ${surface.seat.titleKey} must exist`)
-      }
+      if (!surface.seat) { withoutSeat.push(surface.id); continue }
+      assert.ok(surface.seat.key, `${surface.id} must name a slot key to probe`)
     }
-    // 没有 slot 落点的界面：命令面走 ctx.command（Cordis 命令 API，不是 slot）
+    // 命令面走 ctx.command，不是 slot —— 这是设计，不是缺口。
     assert.deepEqual(withoutSeat, [SURFACE_IDS.command])
-    console.log(`  surfaces without a slot landing (by design): ${withoutSeat.join(', ')}`)
   })
 
-  it('conservative degradation: an unconfirmed key is skipped, never registered', () => {
-    assert.equal(isConfirmedSlotKey('details'), false)
-    assert.equal(isConfirmedSlotKey('sidebar.right.pane.tab'), true)
-    const bogus = {
-      id: 'pr-genius.bogus',
-      seat: { key: 'sidebar.right.pane.tab.totally.invented', kind: 'list', scope: 'root', cellOption: 'id' },
-      kind: 'panel',
-      mode: 'both',
-    } as never
-    assert.deepEqual(registrationCalls(bogus), [], 'unconfirmed key must yield no registration calls')
+  it('probe skips a key the host refuses and keeps going (宁缺勿假)', () => {
+    const host = recordingHost()
+    const registered: string[] = []
+    ;(host.ctx as { slots: { inject: unknown } }).slots.inject = (key: string, factory: () => unknown) => {
+      if (key === 'nonexistent.slot.from.no.catalog') throw new Error('slot not declared')
+      try { factory() } catch { /* host refused the register */ }
+      registered.push(key); return () => {}
+    }
+    prGenius.apply(host.ctx as never, parseConfig({}))
+    assert.ok(!registered.includes('nonexistent.slot.from.no.catalog'),
+      'a key the host refuses must not be reported as registered')
+    assert.ok(registered.length > 0, 'probe must still register what the host accepts')
   })
 
   it('kind/scope declarations match the catalog (the v2.1.2 single-vs-keyed bug class)', () => {
+    // 形状证据保留、成员资格判据去掉（同 option C）：只在 key 恰好出现在**这份**
+    // fixture catalog 里时才比 kind/scope —— 那是双方都认识的 key，形状不该有分歧。
+    // 单侧认识的 key（如 pinned-only 的右栏落点）跳过，交给运行时探测。
     for (const [key, spec] of Object.entries(SLOT_DECLARATIONS) as [string, { kind: string; scope: string }][]) {
       const entry = CATALOG.get(key)
-      assert.ok(entry, `SLOT_DECLARATIONS key ${key} must exist upstream`)
+      if (!entry) continue
       assert.equal(spec.kind, entry.kind, `${key}: declared kind must match catalog`)
       assert.equal(spec.scope, entry.scope, `${key}: declared scope must match catalog`)
       console.log(`  ✓ declaration ${key} = ${spec.kind}/${spec.scope}`)

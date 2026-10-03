@@ -1,17 +1,18 @@
 /**
- * slot 契约测试 —— 对照 DSH SDK slot-catalog 的实抓快照，不对照任何自造假设。
+ * slot 契约测试 —— 判据是「可探测的注册契约形状」，不是「key 在某份 catalog 里」。
  *
- * 权威源：deepseek-ai/deepseek-harness
- *   packages/extensions/cordis-client-runner/src/client/slot-catalog.ts
- * 2026-10-03 gh api 实抓，机械抽取为 docs/slot-catalog-evidence.json（92 keys）。
- * 注意：deepseek-ai/deepseek-harness-sdk 这个仓库不存在（404），catalog 在
- * deepseek-harness 里；`details` 不是 slot key（root doc 里的 AppFrame 座位名）。
+ * 权威是运行时探测（option C）。两份 catalog 不一致且都自称权威：
+ *   - pinned SDK 0.0.1-rc.3（用户装到的那份）：42 keys，右栏落点是 `details`；
+ *   - upstream deepseek-harness@master：92 keys，右栏落点是 `sidebar.right.pane.tab`。
+ * 对着任一份写死 key 级判据，会在对方更新时被推翻 —— issue #97 就是这么翻的车。
+ * docs/slot-catalog-evidence.json 是 upstream 那一份的实抓快照（2026-10-03），
+ * 这里只拿它做**形状**对照，不做成员资格判定。
  *
  * 这些断言不证明宿主会渲染我们的组件（需 DSH 运行时），只证明：
- *   1. 我们注册的 key 在权威 catalog 里真实存在；
- *   2. kind/scope 与 catalog 一致；
+ *   1. 契约表自身自洽（kind/scope/entryShape 互相咬合）；
+ *   2. 每个非命令面都有可探测的 seat（有 key、候选非空）；
  *   3. register() 参数形状与 catalog example 一致（list→id，keyed→key）；
- *   4. 未核对的 key 会被保守拒绝（不注册）。
+ *   4. 无契约的 key 会被保守拒绝（不猜测注册）。
  */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -51,53 +52,71 @@ describe('slot catalog evidence', () => {
   it('snapshot carries its provenance and a non-trivial key set', () => {
     assert.equal(snapshot.provenance.source, 'deepseek-ai/deepseek-harness')
     assert.ok(snapshot.entries.length >= 50, `catalog snapshot too small: ${snapshot.entries.length}`)
-    // 反证两条流传过的说法，判据只能是 catalog 本身：
-    assert.equal(byKey.has('details'), false, 'details must not be a slot key (AppFrame seat name only)')
-    assert.equal(byKey.has('sidebar.right.pane.tab'), true, 'sidebar.right.pane.tab is a real key')
-    assert.equal(byKey.get('sidebar.right.pane.tab')?.kind, 'keyed')
-    assert.equal(byKey.get('sidebar.right.pane.tab')?.replaceRisk, 'none')
+    // 下面只陈述**这份 upstream 快照**里有什么，不做「哪个 key 合法」的判断。
+    // 权威是运行时（option C）；两份 catalog 不一致，任何 key 级主张都会被推翻。
+    // 记下分歧，供漂移对照：
+    const upstreamHas = (k: string) => byKey.has(k)
+    console.log('  upstream snapshot: details=%s sidebar.right.pane.tab=%s (pinned SDK 与之相反)',
+      upstreamHas('details'), upstreamHas('sidebar.right.pane.tab'))
+    // 形状确实可核的：kind/scope 是契约的一部分，与 catalog 版本无关。
     assert.equal(byKey.get('conversation.view')?.kind, 'list')
     assert.equal(byKey.get('sidebar.footer.action')?.kind, 'list')
-    assert.equal(byKey.get('settings.plugins.tab')?.kind, 'list')
   })
 })
 
-describe('registered slots match the catalog', () => {
-  it('every VERIFIED_SLOT_CONTRACTS entry exists in the catalog with the same kind/scope', () => {
+describe('registered slots follow the runtime probe contract', () => {
+  // 前提同 option C：不判「key 在不在某份 catalog」——pinned 42 keys 与 upstream
+  // 92 keys 不一致，任一判定都会被对方更新推翻（#97）。判的是**注册契约形状**。
+  it('every contract is self-consistent (kind/scope/entryShape agree)', () => {
+    // 不查 catalog —— 权威是运行时。查的是契约自身是否自洽。
     for (const [slot, contract] of Object.entries(VERIFIED_SLOT_CONTRACTS)) {
-      const entry = byKey.get(slot)
-      assert.ok(entry, `slot ${slot} is not in the authoritative catalog`)
-      assert.equal(contract.kind, entry.kind, `kind mismatch for ${slot}`)
-      assert.equal(contract.scope, entry.scope, `scope mismatch for ${slot}`)
+      assert.ok(contract.kind, `${slot}: kind required`)
+      assert.ok(contract.scope, `${slot}: scope required`)
       assert.equal(
         contract.entryShape,
-        entry.kind === 'keyed' ? 'key' : 'id',
-        `entry shape mismatch for ${slot}`,
+        contract.kind === 'keyed' ? 'key' : contract.kind === 'single' ? 'none' : 'id',
+        `${slot}: entry shape must follow kind (keyed→key, single→none, list/chain→id)`,
       )
     }
   })
 
-  it('every surface in SURFACE_PLAN lands on a catalog-verified slot', () => {
+  it('every non-command surface names a probeable seat', () => {
+    // 「已验证 / 在某份 catalog 里」不再是判据（权威是运行时）。判的是**可探测**：
+    // 有 key 可试；声明了候选的，候选非空且 seat.key 自己就是候选之一。
+    // 对照面是 advisorPanel：它的 key 是 `details`，upstream 快照里没有、pinned SDK
+    // 里有 —— 成员资格断言会在这里翻车，可探测断言不会。
     for (const surface of planRegistrations()) {
       if (surface.kind === 'command') {
-        // ctx.command 是 cordis 命令面，不是 slot key —— catalog 里查无此项是预期。
-        assert.equal(byKey.has('ctx.command'), false)
+        // ctx.command 是 cordis 命令面，不是 slot key —— seat 为 null 是设计，不是缺口。
+        assert.equal(surface.seat, null, 'command surface must not invent a slot seat')
         continue
       }
-      const seatKey = typeof surface.seat === 'string' ? surface.seat
-        : (surface.seat as { key?: string } | null)?.key
-      assert.ok(
-        seatKey && Object.hasOwn(VERIFIED_SLOT_CONTRACTS, seatKey),
-        `surface ${surface.id} planned on unverified slot ${String(seatKey)}`,
-      )
-      assert.ok(byKey.has(seatKey as string))
+      const seat = surface.seat as { key?: string; candidates?: string[] } | null
+      assert.ok(seat, `surface ${surface.id} must have a seat to probe`)
+      assert.ok(seat!.key, `surface ${surface.id} must name a slot key to probe`)
+      if (seat!.candidates !== undefined) {
+        assert.ok(
+          Array.isArray(seat!.candidates) && seat!.candidates.length > 0,
+          `surface ${surface.id}: declared candidates must be non-empty`,
+        )
+        assert.ok(
+          seat!.candidates.includes(seat!.key),
+          `surface ${surface.id}: seat.key must itself be one of the probe candidates`,
+        )
+      }
     }
   })
 
-  it('SLOT_DECLARATIONS kinds match the catalog', () => {
+  it('SLOT_DECLARATIONS kind/scope agree with the frozen snapshot where both know the key', () => {
+    // 形状证据仍成立，成员资格判据被新前提否定（见文件头 option C）：
+    // - 删掉的是「key 必须在 catalog 里」——pinned 有 details / 无 sidebar.right.pane.tab，
+    //   upstream 相反，任何单侧成员资格断言都会被另一侧推翻。
+    // - 保留的是「若 key 恰好在**这份**快照里，则 kind/scope 必须一致」：它抓的是
+    //   v2.1.2 那类 single-vs-keyed 转写错误，与「谁是权威」无关 —— 两边都认识的
+    //   key，形状不该有分歧。单侧认识的 key 跳过，交给运行时探测。
     for (const [slot, def] of Object.entries(SLOT_DECLARATIONS) as [string, { kind: string; scope: string }][]) {
       const entry = byKey.get(slot)
-      assert.ok(entry, `SLOT_DECLARATIONS has unknown slot ${slot}`)
+      if (!entry) continue
       assert.equal(def.kind, entry.kind, `declaration kind mismatch for ${slot}`)
       assert.equal(def.scope, entry.scope, `declaration scope mismatch for ${slot}`)
     }
@@ -112,19 +131,26 @@ describe('registered slots match the catalog', () => {
     })
     const tab = slotRegisterDef('conversation.view', SURFACE_IDS.advisorTab, 'Advisor')
     assert.deepEqual(tab, { name: 'conversation.view', id: SURFACE_IDS.advisorTab, label: 'Advisor' })
-    const panel = slotRegisterDef('sidebar.right.pane.tab', SURFACE_IDS.advisorPanel)
-    assert.deepEqual(panel, { name: 'sidebar.right.pane.tab', key: SURFACE_IDS.advisorPanel })
-    const prefs = slotRegisterDef('settings.plugins.tab', SURFACE_IDS.preferences, 'pr-genius')
+    const panel = slotRegisterDef('details', SURFACE_IDS.advisorPanel)
+    // single 基数只收 name —— 多传 id 会被 SDK 忽略或报错（gate 的 C4）。
+    assert.deepEqual(panel, { name: 'details' })
+    // preferences 实际落座的是 settings.section（SURFACE_PLAN 的 seat），
+    // 不是 settings.plugins.tab —— 后者已从契约表删掉（不是候选、apply() 不探测）。
+    const prefs = slotRegisterDef('settings.section', SURFACE_IDS.preferences, 'pr-genius')
     assert.deepEqual(prefs, {
-      name: 'settings.plugins.tab',
+      name: 'settings.section',
       id: SURFACE_IDS.preferences,
       label: 'pr-genius',
     })
+    assert.equal(slotRegisterDef('settings.plugins.tab', SURFACE_IDS.preferences, 'pr-genius'), null,
+      'settings.plugins.tab is not a probe candidate — must be refused, not guessed')
   })
 
   it('conservative degrade: an unverified slot key is refused (no guessed registration)', () => {
-    assert.equal(slotRegisterDef('details', 'pr-genius.x'), null)
-    assert.equal(slotRegisterDef('sidebar.right.pane.tab.title', 'pr-genius.x'), null)
-    assert.equal(slotRegisterDef('rightbar.session', 'pr-genius.x'), null)
+    // 两个候选都合法（探测接受任一）；真正不存在的 key 才返回 null。
+    assert.notEqual(slotRegisterDef('details', 'pr-genius.x'), null, 'details is a probe candidate')
+    assert.notEqual(slotRegisterDef('sidebar.right.pane.tab', 'pr-genius.x'), null, 'pane is a probe candidate')
+    assert.equal(slotRegisterDef('nonexistent.slot.from.no.catalog', 'pr-genius.x'), null,
+      'a key with no contract must be refused, not guessed')
   })
 })

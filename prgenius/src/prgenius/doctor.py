@@ -191,10 +191,21 @@ def run_doctor(repo_root: Optional[Path] = None) -> dict:
         warnings.append(f"knowledge base not readable at {root} (anti-patterns/ missing)")
     missing_kw = anti_total - anti_with_kw - anti_json
     if missing_kw > 0:
+        # 分母是 md 模式数，不是总数：JSON 模式**有意**不带 trigger_keywords
+        # (evaluator.load_anti_patterns: "JSON patterns 不提取 keywords — 避免假阳性",
+        # 且 check_anti_patterns 直接跳过它们)。把它们算进"缺关键词"会把 6 说成 196，
+        # 也会让 6/251 看起来像"只有 2.4% 有问题"而实际是 6/61。
+        md_total = anti_with_kw + missing_kw
         warnings.append(
-            f"{missing_kw}/{anti_total} anti-patterns have no trigger_keywords "
+            f"{missing_kw}/{md_total} keyword-based anti-patterns have no trigger_keywords "
             "(they can never match a PR)"
         )
+        if anti_json:
+            warnings.append(
+                f"{anti_json}/{anti_total} anti-patterns are JSON/imported records kept as "
+                "reference only — deliberately keyword-free and skipped by the matcher, "
+                "so they never fire by design (not a defect)"
+            )
     if success_total > 0:
         warnings.append(
             f"{success_total}/{success_total} success-patterns are not consulted by the scorer"

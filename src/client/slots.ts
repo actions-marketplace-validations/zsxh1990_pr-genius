@@ -15,17 +15,29 @@ import { REGISTERED_SLOTS, type SlotSeat } from '../ui/slot-catalog.ts'
 
 /**
  * catalog 核对过的槽位契约。kind/scope 与 slot-catalog.ts 逐字一致；
- * entryShape 决定 register() 第一个参数的形状（list → id，keyed → key）。
+ * entryShape 决定 register() 第一个参数的形状
+ * （list → id，keyed → key，single → 只有 name，不带 cell）。
  */
 export interface VerifiedSlotContract {
   kind: 'list' | 'keyed' | 'single' | 'chain'
   scope: 'root' | 'session' | 'session-maybe'
-  /** register() 的 cell 参数形状：list 槽用 id，keyed 槽用 key。 */
-  entryShape: 'id' | 'key'
+  /**
+   * register() 的 cell 参数形状：list 槽用 id，keyed 槽用 key，
+   * single 槽没有 cell 项（SDK 的 registerOptions 对 single 只声明 name）。
+   */
+  entryShape: 'id' | 'key' | 'none'
   /** slot-catalog.ts 里的 source 字段（出处行）。 */
   catalogSource: string
 }
 
+/**
+ * **候选提示，不是权威白名单。**
+ *
+ * 决定改在这里（issue #97 反复翻车后的取舍）：pinned SDK 与 upstream master
+ * 的 catalog 不一致（42 vs 92 keys），两者都自称权威，对着任一个写死判据都会
+ * 在对方更新时被推翻。所以权威是**运行时**——apply() 逐个试候选，宿主认哪个
+ * 用哪个。这张表只回答「注册时该带哪些 options」，不回答「这个 key 合不合法」。
+ */
 export const VERIFIED_SLOT_CONTRACTS: Record<string, VerifiedSlotContract> = {
   'sidebar.footer.action': {
     kind: 'list',
@@ -39,17 +51,38 @@ export const VERIFIED_SLOT_CONTRACTS: Record<string, VerifiedSlotContract> = {
     entryShape: 'id',
     catalogSource: 'packages/extensions/cordis-client-runner/src/client/slot-catalog.ts',
   },
+  /**
+   * 右栏落点：pinned SDK 里是 `details`（single/session），upstream master 里
+   * 是 `sidebar.right.pane.tab`（keyed/session）。运行时探测决定用哪个，所以
+   * 两个契约都登记 —— 只登记一个会让另一个的注册静默失败。
+   */
+  'details': {
+    kind: 'single',
+    scope: 'session',
+    // single 基数只接受 name —— 不是 id。gate 的 C4 报过这一点：多传 id/label
+    // 会被 SDK 忽略或报错（pinned CLIENT_SLOT_API 对 single 的 registerOptions
+    // 只声明 name）。id 是 list 基数的 cell 选项，别照抄。
+    entryShape: 'none',
+    catalogSource: '@deepseek-ai/dsh-cordis-client-runner (pinned CLIENT_SLOT_API)',
+  },
   'sidebar.right.pane.tab': {
     kind: 'keyed',
     scope: 'session',
     entryShape: 'key',
     catalogSource: 'packages/extensions/cordis-client-runner/src/client/slot-catalog.ts',
   },
-  'settings.plugins.tab': {
+  /**
+   * 设置/偏好落点。SURFACE_PLAN 的 preferences seat 用的就是这个 key（唯一，不是候选）。
+   * `settings.plugins.tab` 曾并列登记在这里，但它不在 preferences 的 candidates 里、
+   * apply() 也不探测它 —— 两份 catalog 对它与 settings.section 的形状还完全一致
+   * （都是 list/root），没有分歧需要探测兜底。留着只会让表看起来像有两个落点，
+   * 所以删掉；需要它时应当先给 preferences 加 candidates，而不是让契约表撒谎。
+   */
+  'settings.section': {
     kind: 'list',
     scope: 'root',
     entryShape: 'id',
-    catalogSource: 'packages/extensions/cordis-client-runner/src/client/slot-catalog.ts',
+    catalogSource: 'pinned SDK CLIENT_SLOT_API (gate ledger: accepted)',
   },
 }
 
@@ -71,6 +104,9 @@ export function slotRegisterDef(slot: string, cellId: string, label?: string): S
   const contract = VERIFIED_SLOT_CONTRACTS[slot]
   if (contract === undefined) return null
   if (contract.entryShape === 'key') return { name: slot, key: cellId }
+  // single 基数：SDK 的 registerOptions 只声明 name。多传 id/label 会被忽略或报错
+  // （gate 的 C4 就报过这一点），所以这里只给 name。
+  if (contract.entryShape === 'none') return { name: slot }
   return label === undefined ? { name: slot, id: cellId } : { name: slot, id: cellId, label }
 }
 
@@ -105,11 +141,15 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
-/** 四个界面的落点名。面板走候选表，运行时探测（见 apply()）。 */
+/**
+ * 四个界面的落点名 —— 必须与 SURFACE_PLAN 的 seat 一致（apply() 从那里注册）。
+ * 面板走候选表，运行时探测（见 apply()）。
+ */
 export const DASHBOARD_SLOT = 'sidebar.footer.action'
 export const ADVISOR_TAB_SLOT = 'conversation.view'
 export const ADVISOR_PANEL_SLOT = 'details'
-export const PREFERENCES_SLOT = 'sidebar.footer.action'
+/** 权威是 SURFACE_PLAN 的 preferences seat（REGISTERED_SLOTS.settingsSection）——不是 dashboard 的脚部席。 */
+export const PREFERENCES_SLOT = 'settings.section'
 export const PANEL_SLOT_CANDIDATES = ['details', 'sidebar.right.pane.tab']
 
 /** 契约表 → register() 的第一参数。 */
