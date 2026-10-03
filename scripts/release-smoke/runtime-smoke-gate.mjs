@@ -604,6 +604,17 @@ if (SKIP_PACK) {
   mkdirSync(extractRoot, { recursive: true })
   execFileSync('tar', ['-xzf', tarballPath, '-C', extractRoot], { stdio: 'pipe' })
   const pkgDir = join(extractRoot, 'package')
+  // 宿主提供 peer 依赖（react / react-dom / cordis），所以产物把它们 external 了
+  // —— 内联 React 会让带自己 React 的宿主 hooks 崩（issue #101）。gate 模拟宿主：
+  // 把仓库 node_modules 链到解包目录，让 import 能解析到宿主侧的那些包。
+  // 不是把 React 重新打进产物 —— 那正是 #101 的修法要避开的。
+  const peersDir = join(pkgDir, 'node_modules')
+  try {
+    execFileSync('ln', ['-s', join(REPO_ROOT, 'node_modules'), peersDir], { stdio: 'pipe' })
+    console.log(`      · host peers provided via symlink → node_modules (react external, issue #101)`)
+  } catch (err) {
+    console.log(`      · WARN: could not link host node_modules: ${err && err.message}`)
+  }
   artifactEntry = join(pkgDir, 'dist', 'index.mjs')
   if (!existsSync(artifactEntry)) {
     throw new Error(`tarball 里没有 dist/index.mjs —— ` +

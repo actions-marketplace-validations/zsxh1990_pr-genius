@@ -6,6 +6,50 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.1.6] - 2026-10-04
+
+> **Two release-pipeline holes found by asking "did the thing users install
+> actually get updated?"** Neither was visible from inside the repo: both only
+> showed up by checking the registries and the packed artifact.
+
+### Fixed
+
+- **React is no longer bundled into the plugin (issue #101).** `tsdown.config.ts`
+  had no `external` list, so `react` — a `devDependency` — was inlined into
+  `dist/index.mjs`. A DSH web host brings its own React, and two copies of React
+  break hooks (`useState` et al. read a dispatcher off "the" React instance), so
+  3 of the 4 sidebar surfaces threw "Invalid hook call" in any host with its own
+  React. `react` / `react-dom` / `react/jsx-runtime` are now external and
+  declared as `peerDependencies`; `dist/index.mjs` drops from 109,936 to ~38,900
+  bytes and contains zero React internals (`ReactCurrentDispatcher`,
+  `react.production*` — grepped, 0 in every chunk).
+  Note the one package that must **stay** bundled: `@deepseek-ai/schemastery` is
+  the only runtime `@deepseek-ai` import and is only a devDependency, so
+  externalizing it (a blanket `/^@deepseek-ai\//` rule) made the unpacked
+  artifact die with `Cannot find package`. The rule is now explicit.
+
+- **The release gate now models a host that provides peers.** It unpacks the
+  tarball and imports it from a temp dir, which has no `node_modules` — so with
+  React externalized it would have failed for the wrong reason. The gate now
+  links the host's `node_modules` into the extract dir before importing, which
+  is what a real host does. It does not re-bundle React to make the gate pass.
+
+### Changed
+
+- **Added the missing `publish-npm.yml`.** `pr-genius` on npm was still at
+  **2.1.1** — 2.1.2, 2.1.3, 2.1.4 and 2.1.5 never got there, because there was
+  no npm publish workflow at all (only `publish-pypi` and `publish-ghcr`).
+  `dsh plugin add pr-genius` is the DSH install path, so anyone installing the
+  plugin was getting the version with invented slot names and null components.
+  Publishing is now tag-driven like the PyPI one.
+
+### Known limits
+
+- Same as 2.1.5: never mounted in a live DSH web host (no `DEEPSEEK_API_KEY`).
+  Issue #102 recruits testers. The React fix is verifiable without a host —
+  the bundle no longer contains a second React — but "the surfaces render in a
+  host that has its own React" still needs someone with a host.
+
 ## [2.1.5] - 2026-10-04
 
 > **Cut to make the DSH web sidebar actually reach a real host — and to stop two
