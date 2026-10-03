@@ -205,7 +205,7 @@ describe('slot keys align with the upstream DSH slot catalog', () => {
   })
 
   it('kind/scope declarations match the catalog (the v2.1.2 single-vs-keyed bug class)', () => {
-    for (const [key, spec] of Object.entries(SLOT_DECLARATIONS)) {
+    for (const [key, spec] of Object.entries(SLOT_DECLARATIONS) as [string, { kind: string; scope: string }][]) {
       const entry = CATALOG.get(key)
       assert.ok(entry, `SLOT_DECLARATIONS key ${key} must exist upstream`)
       assert.equal(spec.kind, entry.kind, `${key}: declared kind must match catalog`)

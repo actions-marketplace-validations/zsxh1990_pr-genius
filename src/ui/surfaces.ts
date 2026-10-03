@@ -1,13 +1,6 @@
 /**
  * 四个界面 + 维护者模式的注册层。
  *
- * 落点唯一真相源在 `./slot-catalog.ts`（上游 DSH slot-catalog 的快照 + 座位表）。
- * 本文件只负责「哪个界面挂哪个座位」，不重复声明 slot 名 / kind / scope。
- *
- * 注册形态（上游 catalog 的 example 原样）：
- *   ctx.slots.inject(slotKey, () => ctx.slots.register(registerOptionsFor(seat, cellId), Component))
- * 其中 `name` 是 slot key（不是界面 id），外加该基数要求的 cell 选项：
- *   list  → `id`；keyed → `key`；single → 无。
  *
  * 诚实边界：本机没有 DEEPSEEK_API_KEY，未跑真 DSH。这里只保证注册形状与契约一致、
  * TypeScript 编译通过；渲染与运行时行为需 DSH 运行时验证，本机未执行。
@@ -19,8 +12,6 @@ import {
   type SlotSeat,
 } from './slot-catalog.ts'
 
-export { CATALOG_PROVENANCE, CONFIRMED_SLOT_KEYS, isConfirmedSlotKey, REGISTERED_SLOTS } from './slot-catalog.ts'
-export type { SlotSeat, SlotKind, SlotScope } from './slot-catalog.ts'
 
 /** 四个界面 + 命令面的稳定标识 —— 配置与测试都引用这些常量，不写字面量。 */
 export const SURFACE_IDS = {
@@ -73,7 +64,15 @@ export const SURFACE_PLAN: SurfaceRegistration[] = [
   },
   {
     id: SURFACE_IDS.advisorPanel,
-    seat: REGISTERED_SLOTS.sidebarRightPaneTab,
+    // 右栏落点有版本分歧：pinned SDK 里是 `details`（42 keys），upstream master
+    // 里是 `sidebar.right.pane.tab`（92 keys）。不二选一 —— 交给 apply() 逐个试，
+    // 宿主认哪个用哪个，都不认就不注册（宁缺勿假）。
+    seat: {
+      key: 'details',
+      kind: 'single',
+      scope: 'session',
+      candidates: ['details', 'sidebar.right.pane.tab'],
+    } as unknown as SlotSeat,
     kind: 'panel',
     mode: 'both',
   },
