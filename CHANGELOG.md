@@ -5,6 +5,33 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **The four surfaces render real data instead of `null` / placeholder copy.**
+  (issue #98) Dashboard shows knowledge-base scale and install health from
+  `prgenius_doctor` (numbers come from the analyzer, never typed into the UI),
+  in-flight PR rows from `status_prs` when an author is configured, Advisor runs
+  `coach_pr` and projects tier / signals / checklist / merge probability /
+  coverage, Preferences is a live readout of `service.describe()`. Every value is
+  fetched through `service.callTool` over the real MCP transport and verified in
+  `test/surface-data.test.ts` against a direct Python call plus a
+  `renderToStaticMarkup` assertion.
+- **Slot contracts now match the authoritative slot-catalog, and registration
+  degrades conservatively.** Declarations claimed `conversation.view` and
+  `sidebar.right.pane.tab` were `single`; the catalog says `list` and `keyed`.
+  Registration now uses the catalog's `register({ name, id | key })` shape,
+  Preferences lands on `settings.plugins.tab`, and any slot not verified against
+  the catalog snapshot is skipped with a warning instead of registered on a
+  guessed key. `docs/slot-catalog-evidence.json` freezes the fetched catalog
+  (92 keys from `deepseek-ai/deepseek-harness`, 2026-10-03). Note: there is no
+  slot key named `details` — that is an AppFrame seat name inside `root`'s docs.
+
+### Known limits
+- No DSH host run yet (no `DEEPSEEK_API_KEY` here): component mount and the
+  keyed `sidebar.right.pane.tab` dispatch are unverified at runtime.
+- Preferences is read-only: the service has no config-write API, so no fake
+  save button.
 
 ## [2.1.2] - 2026-10-03
 

@@ -15,7 +15,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import { planRegistrations, SURFACE_IDS } from './ui/surfaces.ts'
 // 导入 client 层是让它进 bundle 的唯一途径 —— 此前它只是躺在 src/client/ 里
 // 未被引用，所以 tsc 通过、bundle 里却没有它（issue #90）。
-import { Dashboard, Advisor, AdvisorPanel, Preferences, type AdvisorFace } from './client/AdvisorPanel.tsx'
+import { surfaceComponents, type AdvisorFace } from './client/AdvisorPanel.tsx'
+import { slotRegisterDef } from './client/slots.ts'
 import {
   Config,
   PrGeniusConfigError,
@@ -165,20 +166,22 @@ export function apply(ctx: Context, config: Config): void {
   const disposeService = ctx.provide('prGenius', service)
 
   // ── 四个界面 ──────────────────────────────────────────────────────────
-  // 落点来自 docs/dsh-ui-slot-api.md 的权威 slot 表，四个界面的 slot 归属收敛在
-  // SURFACE_PLAN 一处，可被测试断言（assertSlotPlacement），不靠渲染验证。
+  // 落点来自 DSH SDK slot-catalog（实抓快照 docs/slot-catalog-evidence.json），
+  // 四个界面的 slot 归属收敛在 SURFACE_PLAN 一处，可被测试断言（assertSlotPlacement）。
   //
-  // 命令面走 ctx.command（教程明文 API）。UI slot 面走能力探测：ui-slots 的
-  // 组件形态与 renderer 约定属于运行时契约，本机无 DEEPSEEK_API_KEY 跑不起 DSH，
-  // 所以这里只在宿主真的提供 slots 服务时才注册，并把组件实现留给 UI 层注入。
-  // 宁可少注册一个面，也不假称「已渲染」。
-  // 四个界面各自的组件。Tab 与 Panel 共用 Advisor —— 换落点不换逻辑。
-  const COMPONENTS: Record<string, ((face: AdvisorFace) => unknown) | null> = {
-    [SURFACE_IDS.dashboard]: Dashboard,
-    [SURFACE_IDS.advisorTab]: Advisor,
-    [SURFACE_IDS.advisorPanel]: AdvisorPanel,
-    [SURFACE_IDS.preferences]: Preferences,
+  // 命令面走 ctx.command（cordis 命令 API，不是 slot）。UI slot 面走能力探测：
+  // 本机无 DEEPSEEK_API_KEY 跑不起 DSH，所以这里只在宿主真的提供 slots 服务时
+  // 才注册；slot key 只认 catalog 核对过的，核对不过的宁可不注册也不猜。
+  // 真数据从这里注入：宿主的 slot props 不会带我们的 service/配置投影，
+  // 所以在注册时闭包进去（issue #98：组件拿不到 service 就只能渲染占位）。
+  const face: AdvisorFace = {
+    service,
+    locale: resolved.locale,
+    workMode: resolved.maintainer.enabled ? 'maintainer' : 'contributor',
+    riskFilter: resolved.riskFilter,
+    githubAuthor: process.env.PRGENIUS_GITHUB_AUTHOR || process.env.GH_USER || undefined,
   }
+  const COMPONENTS = surfaceComponents(face)
 
   const surfaceDisposers: Array<() => void> = []
 
@@ -222,16 +225,35 @@ export function apply(ctx: Context, config: Config): void {
   ) {
     for (const surface of planRegistrations()) {
       if (surface.kind === 'command') continue
+      // 保守降级（issue #98 铁律）：slot 只认 DSH SDK slot-catalog 核对过的 key。
+      // 不在 VERIFIED_SLOT_CONTRACTS 里的落点不注册、只记 warn —— 绝不用猜测的 key 注册。
+      const label =
+        surface.id === SURFACE_IDS.dashboard
+          ? 'PR Genius'
+          : surface.id === SURFACE_IDS.advisorTab
+            ? 'Advisor'
+            : surface.id === SURFACE_IDS.preferences
+              ? 'pr-genius'
+              : undefined
+      const def = slotRegisterDef(surface.slot, surface.id, label)
+      if (def === null) {
+        logger.warn(
+          'surface %s skipped: slot %s is not in the verified slot catalog — refusing to register an unconfirmed key',
+          surface.id,
+          surface.slot,
+        )
+        continue
+      }
       try {
         const dispose = slotsCtx.slots.inject(surface.slot, () =>
           slotsCtx.slots!.register!(
-            { name: surface.id, kind: surface.kind },
-            // 真实组件，不再是 null —— null 注册等于占了位置却不渲染（issue #86/#90）。
+            def,
+            // 真实组件（含真数据投影），不再是 null —— null 注册等于占了位置却不渲染（issue #86/#90）。
             COMPONENTS[surface.id] ?? null,
           ),
         )
         surfaceDisposers.push(dispose)
-        logger.info('surface registered: %s -> %s', surface.id, surface.slot)
+        logger.info('surface registered: %s -> %s (%s)', surface.id, surface.slot, def.key ?? def.id ?? '')
       } catch (err) {
         logger.warn('surface %s not registered on %s: %s', surface.id, surface.slot, String(err))
       }

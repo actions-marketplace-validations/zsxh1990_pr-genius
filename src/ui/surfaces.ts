@@ -1,14 +1,18 @@
 /**
  * 四个界面 + 维护者模式的注册层。
  *
- * 落点依据 dshfind 官方教程抽取的权威 slot 清单（见 docs/dsh-ui-slot-api.md）：
- *   - `conversation.view` — 会话视图的标签页（dsh-context 的 Context tab 就在这里）
- *   - `sidebar.footer.action` — 侧边栏脚部（Dashboard 与 Preferences 各占一项）
- *   - `sidebar.right.pane.tab` — 右栏面板
- *   - `ctx.command`       — 斜杠命令
+ * 落点依据 DSH SDK 源码 slot-catalog（deepseek-ai/deepseek-harness 的
+ * packages/extensions/cordis-client-runner/src/client/slot-catalog.ts，2026-10-03
+ * gh api 实抓；注意 deepseek-ai/deepseek-harness-sdk 不存在，404）。快照见
+ * docs/slot-catalog-evidence.json（92 个 key，机械抽取）：
+ *   - `sidebar.footer.action` — list/root，侧边栏脚部动作区（Dashboard）
+ *   - `conversation.view`     — list/session，会话视图标签页（顾问 Tab）
+ *   - `sidebar.right.pane.tab`— keyed/session，右栏标签页正文（顾问 Panel，注册带 key）
+ *   - `settings.plugins.tab`  — list/root，插件设置页（Preferences）
+ *   - `ctx.command`           — 不是 slot key，是 cordis 命令面
  *
- * 注册形态：
- *   ctx.slots.inject(slotName, () => ctx.slots.register({ name, ...kind }, Component))
+ * 注册形态（slot-catalog example 的形状）：
+ *   ctx.slots.inject(slot, () => ctx.slots.register({ name: slot, id|key: cell }, Component))
  * 「声明 = 渲染授权 = 运行时规范」，卸载时组件 / slot 条目 / store 一并递归撤销。
  *
  * 诚实边界：本机没有 DEEPSEEK_API_KEY，未跑真 DSH。这里只保证注册形状与契约一致、
@@ -27,15 +31,18 @@ export const SLOTS = {
 } as const
 
 /**
- * 落点 = 真实 DSH slot 名（取自参考插件源码，不是文档）：
- *   sidebar.footer.action    root-scope list —— 侧边栏脚部，Dashboard 与 Preferences 各占一项
- *   conversation.view        session —— 会话视图标签页，与 Chat/Trajectory 并列
- *   sidebar.right.pane.tab   session —— 右栏面板
+ * 落点 = 真实 DSH slot 名（slot-catalog.ts 逐字核对，不是文档、不是参考插件用法）：
+ *   sidebar.footer.action    list  / root     —— 侧边栏脚部动作区
+ *   conversation.view        list  / session  —— 会话视图标签页，与 Chat/Trajectory 并列
+ *   sidebar.right.pane.tab   keyed / session  —— 右栏标签页正文（注册带 key）
+ *   settings.plugins.tab     list  / root     —— 插件设置页
  * 早期版本用过两个不存在的键（照教程散文臆造），shipped catalog 里查无此项——已废弃（issue #86/#95）。
+ * 「sidebar.right.pane.tab 不存在」的说法同样以 catalog 证伪：它存在，是 keyed；
+ * 不存在的是 `details` —— 那是 root doc 里 AppFrame 的内部座位名，不是可注册 key。
  */
 export const SETTINGS_SURFACES = {
-  plugins: 'sidebar.footer.action',
-  pluginInventory: 'sidebar.footer.action',
+  plugins: 'settings.plugins.tab',
+  pluginInventory: 'settings.plugins.tab',
   sidebar: 'sidebar.footer.action',
   panel: 'sidebar.right.pane.tab',
   tab: 'conversation.view',
