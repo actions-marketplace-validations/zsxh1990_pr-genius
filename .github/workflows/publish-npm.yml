@@ -40,6 +40,16 @@ jobs:
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
 
+      # test/surface-data.test.ts 拉起真的 Python FastMCP 子进程取数，
+      # 没有 Python 侧就报 "pr-genius MCP server exited (code=1)" —— 与
+      # release-smoke.yml 曾经的坑同一个。两个工作流都要装。
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install Python package (mcp engine)
+        run: pip install -e "prgenius[dev,mcp]"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
