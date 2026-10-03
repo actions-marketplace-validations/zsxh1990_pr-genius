@@ -219,3 +219,48 @@ class TestEndToEndMaintainerView(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBlockingKeyDedup(unittest.TestCase):
+    """issue #62: blocking_signals must not double-report key + fix_<key>."""
+
+    def test_fix_prefix_duplicates_stripped(self):
+        result = _make_result(
+            negative=[
+                {"key": "contribai-breaking-change-no-migration",
+                 "description": "Breaking change without migration guide",
+                 "severity": "high", "fix_action": "add migration guide",
+                 "source_pr": None},
+                {"key": "breaking-change-no-compat",
+                 "description": "Breaking change, no compat path",
+                 "severity": "high", "fix_action": "add compat shim",
+                 "source_pr": None},
+            ],
+            checklist=[
+                {"done": False, "priority": "P0",
+                 "action": "fix_contribai-breaking-change-no-migration",
+                 "hint": "add migration guide"},
+                {"done": False, "priority": "P0",
+                 "action": "fix_breaking-change-no-compat",
+                 "hint": "add compat shim"},
+            ],
+        )
+        action, reason, blocking = route_action(result)
+        self.assertEqual(action, MaintainerAction.WAIT_FOR_AUTHOR)
+        self.assertEqual(
+            blocking,
+            ["contribai-breaking-change-no-migration", "breaking-change-no-compat"],
+        )
+        for key in blocking:
+            self.assertFalse(key.startswith("fix_"), f"checklist action leaked: {key}")
+
+    def test_checklist_only_blocker_kept_without_fix_prefix(self):
+        """A checklist blocker without its anti-pattern twin still surfaces — once."""
+        result = _make_result(checklist=[
+            {"done": False, "priority": "P0",
+             "action": "fix_shape-risk-destructive-rewrite",
+             "hint": "destructive rewrite of the public response parser"},
+        ])
+        action, reason, blocking = route_action(result)
+        self.assertEqual(action, MaintainerAction.WAIT_FOR_AUTHOR)
+        self.assertEqual(blocking, ["shape-risk-destructive-rewrite"])

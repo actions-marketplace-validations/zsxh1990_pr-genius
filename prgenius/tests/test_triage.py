@@ -152,3 +152,53 @@ class TestDuplicateDetection:
         # The body contains "handle tokenizers version bumps internally" which matches
         assert len(internal) > 0
         assert internal[0]["rule_type"] == "hard"
+
+
+class TestNoPolicyFallback:
+    """issue #63: no policy must surface universal anti-patterns, not rubber-stamp."""
+
+    def test_fallback_signals_present(self):
+        result = triage_pr(
+            "feat: breaking change to public API",
+            "someorg/somerepo",
+            body="Breaking change to the public API",
+            diff_stat="api.py | 100 +++ ---",
+            repo_root=REPO_ROOT,
+        )
+        assert result["policy_loaded"] is False
+        assert result["verdict"] == "needs_preflight"
+        assert "fallback_signals" in result
+        assert isinstance(result["fallback_signals"], list)
+        assert "fallback_hit_count" in result
+        assert result["fallback_hit_count"] == len(result["fallback_signals"])
+
+    def test_suggested_exit_code_contract(self):
+        clean = triage_pr(
+            "chore: bump version",
+            "someorg/somerepo",
+            repo_root=REPO_ROOT,
+        )
+        # no policy + no universal hits → 2 (blind spot, but nothing matched)
+        assert clean["suggested_exit_code"] == 2
+
+        risky = triage_pr(
+            "feat!: breaking change removing public endpoint",
+            "someorg/somerepo",
+            body="This is a breaking change that removes the old endpoint",
+            repo_root=REPO_ROOT,
+        )
+        # no policy + universal hits → 3
+        assert risky["fallback_hit_count"] >= 1
+        assert risky["suggested_exit_code"] == 3
+
+    def test_fallback_signal_shape(self):
+        result = triage_pr(
+            "feat!: breaking change removing public endpoint",
+            "someorg/somerepo",
+            body="This is a breaking change that removes the old endpoint",
+            repo_root=REPO_ROOT,
+        )
+        assert result["fallback_signals"], "expected at least one universal hit"
+        for s in result["fallback_signals"]:
+            assert "key" in s
+            assert "severity" in s

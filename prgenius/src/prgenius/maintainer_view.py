@@ -157,6 +157,28 @@ def _collect_blocking_items(analyze_result: dict) -> dict[str, list[dict]]:
     }
 
 
+def _blocking_keys(items: list[dict]) -> list[str]:
+    """Extract blocking signal keys, without checklist fix_* duplicates (issue #62).
+
+    Anti-pattern hits surface twice in the raw data: once as the anti-pattern
+    `key` (via signals.negative) and once as the checklist action
+    `fix_<key>`. They are the same risk — reporting both makes a 2-blocker PR
+    look like 4. Strip the `fix_` prefix and dedupe so `blocking_signals`
+    carries one entry per distinct risk.
+    """
+    keys: list[str] = []
+    seen: set[str] = set()
+    for s in items:
+        key = s.get("key", "?")
+        if key.startswith("fix_"):
+            key = key[len("fix_"):]
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        keys.append(key)
+    return keys
+
+
 def route_action(analyze_result: dict) -> tuple[MaintainerAction, str, list[str]]:
     """Map analyze_pr result → (action, reason, blocking_signals).
 
@@ -174,7 +196,7 @@ def route_action(analyze_result: dict) -> tuple[MaintainerAction, str, list[str]
 
     # 1. HOLD — workflow/core/security/roadmap
     if cats["workflow"]:
-        keys = [s.get("key", "?") for s in cats["workflow"]]
+        keys = _blocking_keys(cats["workflow"])
         return (
             MaintainerAction.HOLD_MAINTAINER_DECISION,
             f"Workflow/core/security/roadmap change — needs maintainer signoff",
@@ -183,15 +205,15 @@ def route_action(analyze_result: dict) -> tuple[MaintainerAction, str, list[str]
 
     # 2. CLOSE_DUPLICATE
     if cats["duplicate"]:
-        keys = [s.get("key", "?") for s in cats["duplicate"]]
+        keys = _blocking_keys(cats["duplicate"])
         return (
             MaintainerAction.CLOSE_DUPLICATE,
             f"Duplicate or already-merged change detected",
             keys,
         )
 
-    # Collect blocking signal keys
-    blocking = [s.get("key", "?") for s in cats["dco"] + cats["audit"] + cats["ci"] + cats["shape"] + cats["stale"]]
+    # Collect blocking signal keys (issue #62: no fix_* duplicates)
+    blocking = _blocking_keys(cats["dco"] + cats["audit"] + cats["ci"] + cats["shape"] + cats["stale"])
 
     # 3. CLOSE_STALE_OR_RISKY — DCO failed AND shape-risk AND no author response
     if cats["dco"] and cats["shape"] and cats["stale"]:

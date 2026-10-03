@@ -222,7 +222,7 @@ Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.1`
 | `coach_pr` | Go/no-go decision (pass/fail) | `title`, `repo` |
 | `triage_pr` | Maintainer policy check (9 rules) | `title`, `repo` |
 | `get_repo_profile` | Repo profile (17 fields) | `repo` |
-| `list_open_prs` | Open PR list | `repo` |
+| `list_open_prs` | Local open **case-study records** (not live GitHub PRs; live ones → `status_prs`); optional `repo`/`author` filters | *(none)* |
 | `get_case_study` | PR case study details | `case_id` |
 | `search_patterns` | Anti-pattern/success-pattern search | `query` |
 | `schema_info` | OKF schema versions | *(none)* |
@@ -231,6 +231,7 @@ Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.1`
 | `maintainer_view` | Maintainer-side PR view (5 actions: `READY_FOR_REVIEW`, `WAIT_FOR_AUTHOR`, `CLOSE_DUPLICATE`, `CLOSE_STALE_OR_RISKY`, `HOLD_MAINTAINER_DECISION`) | `repo` |
 | `contributor_view` | Contributor readiness decision (5 actions: `READY_TO_SUBMIT`, `FIX_BEFORE_SUBMIT`, `NEEDS_DISCUSSION`, `IMPROVE_CHANCE`, `ASK_MAINTAINER`) | `repo` |
 | `review_queue` | Prioritized review queue | `repo` |
+| `prgenius_doctor` | Install/data/MCP self-test — run this when analyze returns nothing | *(none)* |
 
 ### Tool Parameter Notes
 
@@ -238,6 +239,8 @@ Docker: `docker run --rm -i ghcr.io/zsxh1990/pr-genius:1.9.1`
 - **`repo`** (required for most tools): Repository in `owner/name` format, e.g. `"encode/httpx"`
 - **`pr_description`** (optional): Additional PR body text for deeper analysis
 - **`query`** (required for `search_patterns`): Search keywords, e.g. `"connection timeout"`
+- **`diff_stat`** (optional for `analyze_pr`, `coach_pr`): `git diff --stat` output — populates the `impact`/`review` fields (both are `null` without it) and is the authoritative PR-size signal
+- **`star_count`** ≥ 0, **`repo_merge_rate`** in `[0.0, 1.0]`, **`author_association`** in `NONE/CONTRIBUTOR/COLLABORATOR/MEMBER/OWNER`, **`mergeable`** in `MERGEABLE/CONFLICTING/UNKNOWN` — invalid values are rejected instead of silently producing meaningless output
 
 ## 🧩 DSH Plugin
 

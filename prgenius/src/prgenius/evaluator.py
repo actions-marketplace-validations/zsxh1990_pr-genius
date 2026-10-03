@@ -844,23 +844,45 @@ def _classify_tier_and_pr_size(
     body_lower = body.lower() if body else ""
     combined = f"{title_lower} {body_lower}"
 
-    if total_lines > 0:
-        # 基于实际 diff_stat 的行数分级
-        if total_lines > 500 or files_changed > 20:
-            pr_size = "XL"
-            pr_size_label = f"超大 ({total_lines} 行, {files_changed} 文件)"
-        elif total_lines > 300 or files_changed > 10:
-            pr_size = "L"
-            pr_size_label = f"大 ({total_lines} 行, {files_changed} 文件)"
-        elif total_lines > 150 or files_changed > 5:
-            pr_size = "M"
-            pr_size_label = f"中等 ({total_lines} 行, {files_changed} 文件)"
-        elif total_lines > 50:
-            pr_size = "S"
-            pr_size_label = f"小 ({total_lines} 行, {files_changed} 文件)"
-        else:
-            pr_size = "XS"
-            pr_size_label = f"极小 ({total_lines} 行, {files_changed} 文件)"
+    def _size_rank(s: str) -> int:
+        return {"XS": 0, "S": 1, "M": 2, "L": 3, "XL": 4}.get(s, 0)
+
+    if total_lines > 0 or files_changed > 0:
+        # issue #59: 二维分级 (行数 × 文件数), 取两者中更大的档位。
+        # 阈值: XS ≤50 行 / ≤2 文件; S 51-150 / 3-5; M 151-300 / 6-10;
+        #       L 301-500 / 11-20; XL >500 行或 >20 文件。
+        def _bucket_by_lines(n: int) -> str:
+            if n > 500:
+                return "XL"
+            if n > 300:
+                return "L"
+            if n > 150:
+                return "M"
+            if n > 50:
+                return "S"
+            return "XS"
+
+        def _bucket_by_files(n: int) -> str:
+            if n > 20:
+                return "XL"
+            if n > 10:
+                return "L"
+            if n > 5:
+                return "M"
+            if n > 2:
+                return "S"
+            return "XS"
+
+        lines_bucket = _bucket_by_lines(total_lines)
+        files_bucket = _bucket_by_files(files_changed)
+        pr_size = max((lines_bucket, files_bucket), key=_size_rank)
+        _SIZE_CN = {"XS": "极小", "S": "小", "M": "中等", "L": "大", "XL": "超大"}
+        detail = ""
+        if lines_bucket != files_bucket:
+            detail = f"; 行数档 {lines_bucket}/文件档 {files_bucket}"
+        pr_size_label = (
+            f"{_SIZE_CN[pr_size]} ({total_lines} 行, {files_changed} 文件{detail})"
+        )
     else:
         # 回退: 基于标题关键词启发式 (无 diff_stat 时)
         if any(kw in combined for kw in ["major", "refactor", "rewrite", "migration", "breaking"]):
@@ -1154,7 +1176,7 @@ def analyze_pr(
     )
 
     # ---- Phase 4: 输出组装 ----
-    return _assemble_output(
+    result = _assemble_output(
         repo=repo, title=title, tier=tier,
         signals_pos=signals_pos, signals_neg=signals_neg, signals_neu=signals_neu,
         checklist=checklist, anti_matches=anti_matches, repo_context=repo_context,
@@ -1162,6 +1184,22 @@ def analyze_pr(
         comparison=comparison, pr_size=pr_size, pr_size_label=pr_size_label,
         impact_score=impact_score, risk_level=risk_level, risk_description=risk_description,
     )
+
+    # issue #61: impact / review 在 analyze 主路径统一计算 (coach / analyze /
+    # MCP analyze_pr 共用), 无 diff_stat 时显式给 null 而不是省略 key。
+    if diff_stat:
+        from dataclasses import asdict
+        from .pr_metadata import assess_impact, assess_review_complexity
+
+        impact = assess_impact(title, body, diff_stat)
+        review = assess_review_complexity(impact, title, body)
+        result["impact"] = asdict(impact)
+        result["review"] = asdict(review)
+    else:
+        result["impact"] = None
+        result["review"] = None
+
+    return result
 
 
 # ============================================================
