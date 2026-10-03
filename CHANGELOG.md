@@ -46,6 +46,30 @@ drift as a warning.
 Nothing in the plugin's registration is changed by this entry — that is separate work.
 The gate's job is to stop a claim like these from shipping unchallenged again.
 
+### Fixed
+- **Slot keys are checked against the upstream DSH slot catalog before any
+  registration.** `src/ui/slot-catalog.ts` is the single source of truth: the
+  92 keys parsed out of
+  `deepseek-ai/deepseek-harness:packages/extensions/cordis-client-runner/src/client/slot-catalog.ts`
+  (blob `7c8f7af1`, commit `2db0c83e`, 2026-10-02) plus the seats the four
+  surfaces use. A seat missing from that catalog is **not registered** — the
+  plugin logs a warning instead of inventing a key. (issue #97)
+- `conversation.view` is declared `list/session` and `sidebar.right.pane.tab`
+  `keyed/session`, matching the catalog. v2.1.2 declared both `single`, which
+  is wrong even where the key existed: a keyed seat requires the `key` register
+  option, and the old call passed `kind` — not a register option at all —
+  while `name` carried the surface id instead of the slot key.
+- Preferences moved to `settings.section` (list/root, "one settings page per
+  list entry"), the settings landing the catalog actually offers.
+
+### Changed
+- `src/ui/surfaces.ts` and `src/client/slots.ts` no longer each define slot
+  names: both derive from `REGISTERED_SLOTS`, and a compile-time assertion
+  keeps the `declare module` literals in sync.
+- Verification is no longer self-referential. `scripts/verify-slot-keys.mjs`
+  fetches the upstream catalog and `test/slot-catalog.test.ts` parses those
+  bytes into the allowed set before running `apply()`; the allowed set never
+  comes from the plugin's own constants.
 
 ## [2.1.2] - 2026-10-03
 
