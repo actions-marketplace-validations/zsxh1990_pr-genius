@@ -42,7 +42,11 @@ async def test_mcp_loads():
     from prgenius.mcp import _load_tools
     mcp = _load_tools(REPO_ROOT_STR)
     assert mcp is not None
-    assert type(mcp).__name__ == "FastMCP"
+    # 类名随 mcp 版本变 (1.x: FastMCP, 2.x: MCPServer) —— 契约是"是个 MCP 服务端",
+    # 不是某个类名。断言类名会让升级 mcp 变成假失败。
+    assert type(mcp).__name__ in {"FastMCP", "MCPServer"}, (
+        f"unexpected MCP server class: {type(mcp).__name__}"
+    )
 
 
 @pytest.mark.asyncio
@@ -81,15 +85,21 @@ async def test_mcp_tools_have_readonly_annotations():
     tools = await mcp.list_tools()
     for tool in tools:
         ann = tool.annotations
-        assert ann.readOnlyHint is True, (
-            f"{tool.name}: readOnlyHint should be True, got {ann.readOnlyHint}"
-        )
-        assert ann.destructiveHint is False, (
-            f"{tool.name}: destructiveHint should be False, got {ann.destructiveHint}"
-        )
-        assert ann.idempotentHint is True, (
-            f"{tool.name}: idempotentHint should be True, got {ann.idempotentHint}"
-        )
+        # 字段拼写随 mcp 版本变: 1.x camelCase (readOnlyHint),
+        # 2.x snake_case (read_only_hint)。两个都收, 读不到就报清楚 —— 验的是
+        # "只读 advisor" 这个契约, 不是某一代 API 的属性名。
+        def _hint(*names):
+            for n in names:
+                if hasattr(ann, n):
+                    return getattr(ann, n)
+            raise AssertionError(
+                f"{tool.name}: annotations has none of {names}; got {type(ann).__name__} "
+                f"with fields {[f for f in dir(ann) if f.endswith('_hint')]}"
+            )
+
+        assert _hint("readOnlyHint", "read_only_hint") is True, f"{tool.name}: readOnlyHint"
+        assert _hint("destructiveHint", "destructive_hint") is False, f"{tool.name}: destructiveHint"
+        assert _hint("idempotentHint", "idempotent_hint") is True, f"{tool.name}: idempotentHint"
 
 
 # ============================================================
