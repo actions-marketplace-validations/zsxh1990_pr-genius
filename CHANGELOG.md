@@ -6,6 +6,56 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.1.8] - 2026-10-04
+
+> Found by actually walking the new-user path against the **published** wheel,
+> not the working tree — which is the only way this class of defect shows up.
+
+### Fixed
+
+- **`prgenius-core doctor` no longer invents a repo root.** `_find_repo_root()`
+  had a legacy dev-layout step (`here.parents[3]`) that was supposed to be a
+  shortcut for `prgenius/src/prgenius/utils.py` → repo root. On a wheel install
+  that expression evaluates to the virtualenv's `lib/` directory — a
+  plausible-looking path that is not a repo root at all. A user who ran
+  `pip install prgenius-core` and then `doctor` was told their knowledge base
+  was missing "at /…/lib", which is not actionable and not true.
+
+  The dev-layout step now only applies if that directory actually carries the
+  knowledge-bundle markers. When nothing is found, the resolution source is
+  reported as `none` and the warning says the real cause and the real fix: the
+  `prgenius-core` **wheel ships code only**, the corpus lives in the git repo,
+  and you point at it with `--repo-root <clone>` or `PRGENIUS_REPO_ROOT`.
+
+### Changed
+
+- **Quick Start now matches what a new user actually has to do.** It said
+  `pip install prgenius-core` and then showed commands that need the corpus.
+  It now covers the `[mcp]` extra (without it `doctor` reports the MCP surface
+  unusable and `overall: NOT OK`), the clone step, and the `PRGENIUS_REPO_ROOT`
+  export, with a note that `overall: NOT OK` after a bare install is the wheel
+  containing code only rather than a broken install.
+
+Verified end-to-end against a freshly built wheel in an empty venv:
+
+```
+$ pip install "prgenius-core[mcp]"
+$ PRGENIUS_REPO_ROOT=<clone> prgenius-core doctor
+knowledge:   readable — 251 anti-patterns, 692 success-patterns,
+             67 profiles, 53 case studies, 5 policies
+mcp:         ✓ 14 tools
+overall:     OK
+```
+
+Both journeys were re-run against the release: the developer path (install from
+PyPI → `doctor` → analyze/coach/triage) and the maintainer path (version-sync
+gate → `validate` ×3 → DSH contract 27/27 → tsc → 68 tests → release smoke
+gate).
+
+### Known limits
+
+- Unchanged: never mounted in a live DSH web host. Issue #102 recruits testers.
+
 ## [2.1.7] - 2026-10-04
 
 > Cut to close two documentation gaps and — more importantly — to be the first

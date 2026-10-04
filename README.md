@@ -86,7 +86,17 @@ PR Genius is also a **DSH (Cordis) plugin** that slots into the DeepSeek Harness
 ## 🚀 Quick Start
 
 ```bash
+# Code only. Add [mcp] if you want the MCP server.
 pip install prgenius-core
+pip install "prgenius-core[mcp]"     # + the MCP engine
+
+# The knowledge bundle is NOT in the wheel — it lives in this git repo.
+# Clone it and point the CLI at it (or export PRGENIUS_REPO_ROOT=<clone>).
+git clone https://github.com/zsxh1990/pr-genius.git
+export PRGENIUS_REPO_ROOT="$PWD/pr-genius"
+
+# Sanity check: prints what it found and what is missing
+prgenius-core doctor
 
 # Analyze PR
 python3 -m prgenius analyze "feat: add feature" --repo org/repo --body "Fixes #123"
@@ -104,6 +114,11 @@ python3 -m prgenius status --author zsxh1990 --format json --save-snapshot
 # Profile writeback suggestions (dry-run)
 python3 -m prgenius profile writeback --author zsxh1990
 ```
+
+> **First run of `doctor` matters.** It tells you whether the knowledge bundle
+> was found and which optional pieces are missing. `overall: NOT OK` after a
+> bare `pip install` is expected — it is the wheel containing code only, not a
+> broken install. The warning names exactly what to do.
 
 ### CLI reference
 

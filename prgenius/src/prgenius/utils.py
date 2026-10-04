@@ -19,33 +19,59 @@ logger = logging.getLogger(__name__)
 _KB_MARKERS = ("anti-patterns", "success-patterns", "profiles")
 
 
-def _find_repo_root() -> Path:
+def _find_repo_root() -> tuple[Path, str]:
     """Locate the pr-genius repo root (knowledge bundle parent).
 
     Resolution order:
       1. ``PRGENIUS_REPO_ROOT`` env-var (explicit override).
       2. Walk up from this file looking for a directory that contains
          the knowledge-bundle markers (``anti-patterns/``, etc.).
-      3. Legacy ``.parents[3]`` fallback (dev-layout shortcut).
+      3. Dev-layout shortcut (``prgenius/src/prgenius/utils.py`` → repo root) —
+         **only if that directory really carries the markers**.
+
+    Returns ``(path, source)`` where source is one of ``env`` / ``found`` /
+    ``dev-layout`` / ``none``. ``none`` means no knowledge bundle was located:
+    the returned path is still a real directory, but it is **not** a repo root
+    and callers must say so instead of pretending.
+
+    Why the dev-layout step is now conditional: for a wheel install
+    (``site-packages/prgenius/utils.py``) ``parents[3]`` evaluates to the
+    environment's ``lib/`` directory. That looks like a plausible path and is
+    not one, so ``prgenius-core doctor`` used to report it as ``repo_root`` and
+    a new user was told their knowledge base was missing "at /…/lib". Check the
+    markers or admit you did not find it.
     """
     # 1. Env-var override
     env = os.environ.get("PRGENIUS_REPO_ROOT")
     if env:
         p = Path(env).resolve()
         if p.is_dir():
-            return p
+            return p, "env"
 
     # 2. Walk up from this file
     here = Path(__file__).resolve()
     for ancestor in here.parents:
         if all((ancestor / m).is_dir() for m in _KB_MARKERS):
-            return ancestor
+            return ancestor, "found"
 
-    # 3. Legacy fallback (dev layout: prgenius/src/prgenius/utils.py)
-    return here.parents[3]
+    # 3. Dev layout: prgenius/src/prgenius/utils.py → repo root is parents[3].
+    dev = here.parents[3] if len(here.parents) > 3 else here.parent
+    if dev.is_dir() and all((dev / m).is_dir() for m in _KB_MARKERS):
+        return dev, "dev-layout"
+
+    return here.parent, "none"
 
 
-REPO_ROOT = _find_repo_root()
+REPO_ROOT, REPO_ROOT_SOURCE = _find_repo_root()
+
+
+def get_repo_root_source() -> str:
+    """How the knowledge-base root was resolved: env / found / dev-layout / none.
+
+    ``none`` means nothing was found — the path from :func:`get_repo_root` is
+    not a knowledge base and should be reported as such.
+    """
+    return REPO_ROOT_SOURCE
 
 
 def get_repo_root() -> Path:
