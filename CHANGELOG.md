@@ -6,6 +6,33 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.2.1] - 2026-10-04
+
+> **The #103 fix was committed to `main` after `v2.2.0` was tagged, so 2.2.0
+> still shipped the crash.** Caught only by walking the new-user path against
+> the *published* wheel — running the same command from the working tree
+> printed the fixed behaviour and looked done. That is the third time in this
+> series a fix has been "verified" somewhere the user cannot reach.
+
+### Fixed
+
+- **A bad `--repo-root` no longer raises a traceback** (issue #103). `iter_profiles`
+  called `root.iterdir()` directly, so `prgenius-core --repo-root /nonexistent doctor`
+  ended in `FileNotFoundError` out of the middle of the parser. `parser.py` now
+  has `_iter_dir()` which returns an empty list when the directory is missing,
+  unreadable, or not a directory; all three traversals go through it. `doctor`
+  then distinguishes the three bad-input cases (`does not exist` / `is not a
+  directory` / `anti-patterns/ missing`) instead of blaming the markers for all
+  of them.
+
+### Process note
+
+Issue #103 was closed on the strength of a `PYTHONPATH=src` run. The wheel was
+never checked. "Fixed in commit X" and "fixed in the version you install" are
+different claims, and only the second one is what a user experiences — so the
+fix is in **2.2.1**, not 2.2.0. Anyone who hit the traceback on 2.2.0 should
+upgrade.
+
 ## [2.2.0] - 2026-10-04
 
 > Two pieces of convergence work: make the corpus's own rules enforceable, and
