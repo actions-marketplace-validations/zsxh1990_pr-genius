@@ -11,9 +11,6 @@ confidence: medium
 
 ---
 
-trigger_keywords:
-  - no-keywords---
-
 # fastmcp: PR Too Large for First Contribution
 
 ## Pattern

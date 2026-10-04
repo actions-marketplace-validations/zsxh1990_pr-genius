@@ -1,5 +1,5 @@
 ---
-type: Lesson
+type: Anti-Pattern
 title: "docs: sync README numbers to actual 275 indexed lessons"
 source: "Ikalus1988/MisakaNet#965"
 source_url: "https://github.com/Ikalus1988/MisakaNet/pull/965"

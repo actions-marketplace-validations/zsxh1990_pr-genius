@@ -1,5 +1,5 @@
 ---
-type: Lesson
+type: Anti-Pattern
 title: "docs(contributor): add PR Genius anti-patterns reference"
 source: "Ikalus1988/MisakaNet#938"
 source_url: "https://github.com/Ikalus1988/MisakaNet/pull/938"
