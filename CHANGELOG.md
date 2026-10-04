@@ -6,6 +6,135 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.2.3] - 2026-10-04
+
+> Harvest was writing "failure" into records of PRs that merged cleanly.
+
+### Fixed
+
+- **`harvest` no longer stamps successful PRs as `pr-failure`.** Both draft
+  templates hardcoded the category, so a merged PR with zero maintainer
+  feedback came out as a `pr-failure` anti-pattern with
+  Lesson/Solution/Verification left for a human to fill in. Four such shells
+  had accumulated in `anti-patterns/`; three of them were merged PRs whose own
+  record said "已合并 by @维护者" and "Root Cause: 无 maintainer 评论".
+
+  `classify_outcome()` now decides, and a `merged-clean` draft says plainly
+  that there is no signal and asks **not** to be filled in — inviting a Lesson
+  for a failure that never happened is worse than leaving it blank.
+
+- **One document could contradict itself.** The classifier counted *any* comment
+  as feedback while `Root Cause` only quotes OWNER/MEMBER/COLLABORATOR ones, so
+  a PR with only a DCO bot comment was labelled "has feedback" and printed
+  "无 maintainer 评论". Both now use the same filter.
+
+The three mislabeled records are corrected in place. `test_harvest.py` covers
+the classification and asserts the honesty property directly.
+
+698 pytest green (was 689); `validate` ×3 exit 0.
+
+
+## [2.2.2] - 2026-10-04
+
+> Follow-up to 2.2.1: the crash was gone, the message was still wrong.
+
+### Fixed
+
+- **`doctor` now names the path that is actually wrong.** With
+  `--repo-root /tmp/nonexistent`, 2.2.1 printed the "wheel ships code only"
+  text and then called that path "where the package is installed" — it is what
+  the *user* passed. `repo_root_source` describes the module's auto-resolution
+  and has nothing to do with `--repo-root`, so checking it first routed an
+  explicitly passed bad path into the auto-detect branch.
+
+  Existence checks now come first, since they describe the root actually in
+  use: `does not exist` / `is not a directory` / `anti-patterns/ missing`, and
+  only then the wheel-ships-code message — which is accurate when it fires,
+  because in that case the path really is the install location.
+
+All four input cases verified. 689 pytest green, `validate --strict` exit 0.
+
+
+## [2.2.1] - 2026-10-04
+
+> **The #103 fix was committed to `main` after `v2.2.0` was tagged, so 2.2.0
+> still shipped the crash.** Caught only by walking the new-user path against
+> the *published* wheel — running the same command from the working tree
+> printed the fixed behaviour and looked done. That is the third time in this
+> series a fix has been "verified" somewhere the user cannot reach.
+
+### Fixed
+
+- **A bad `--repo-root` no longer raises a traceback** (issue #103). `iter_profiles`
+  called `root.iterdir()` directly, so `prgenius-core --repo-root /nonexistent doctor`
+  ended in `FileNotFoundError` out of the middle of the parser. `parser.py` now
+  has `_iter_dir()` which returns an empty list when the directory is missing,
+  unreadable, or not a directory; all three traversals go through it. `doctor`
+  then distinguishes the three bad-input cases (`does not exist` / `is not a
+  directory` / `anti-patterns/ missing`) instead of blaming the markers for all
+  of them.
+
+### Process note
+
+Issue #103 was closed on the strength of a `PYTHONPATH=src` run. The wheel was
+never checked. "Fixed in commit X" and "fixed in the version you install" are
+different claims, and only the second one is what a user experiences — so the
+fix is in **2.2.1**, not 2.2.0. Anyone who hit the traceback on 2.2.0 should
+upgrade.
+
+## [2.2.0] - 2026-10-04
+
+> Two pieces of convergence work: make the corpus's own rules enforceable, and
+> let the `mcp` extra install on either generation of the SDK.
+
+### Added
+
+- **Check 4b — pattern loader visibility.** `load_anti_patterns` reads only
+  frontmatter, but nothing checked that the fields it consumes were actually
+  written there. Two pattern files carried `trigger_keywords:` *in the body*,
+  after the closing `---`, with the placeholder value `no-keywords` — so those
+  patterns loaded with zero keywords and could never fire, and no tool said so.
+  The check reports three classes: a loader-consumed field sitting in the body,
+  a placeholder value (`no-keywords` / `TODO` / `tbd` / …), and a file whose
+  `type` is not `Anti-Pattern` while living in `anti-patterns/`.
+
+  Each class was verified by injecting it and watching the counter move, not by
+  reading the code and believing it.
+
+- **mcp 2.x support.** The `mcp` extra now installs on `mcp>=1.0,<3.0`.
+  Dependabot opened exactly this widening (PR #88) and it broke every install,
+  because mcp 2.x renames `FastMCP` to `MCPServer` — the widening was right and
+  the migration was missing. `mcp.py` now imports whichever generation is
+  installed; the API surface we use (constructor, `@tool(annotations=…)`,
+  `run(transport=…)`) is identical across both. `_tool_manager._tools` is still
+  a plain dict in 2.x, so `doctor`'s introspection needed no fork.
+
+### Fixed
+
+- **Five pattern files carried the wrong `type`.** `anti-patterns/` holds 56
+  files typed `Anti-Pattern`; five said `Lesson` or `Case Study`. The loader
+  counts every file in that directory as an anti-pattern and the case studies
+  reference these keys as anti-patterns, so the mismatch inflated the coverage
+  denominator and made "anti-pattern" mean two things. Normalised.
+
+- **Two pattern files leaked a malformed frontmatter block into the body**,
+  including a `---` glued onto the placeholder value. Removed. No keywords were
+  invented to replace them — the honest state is "no keyword detector", and
+  fabricating values to lift coverage is what the evidence gate forbids
+  elsewhere.
+
+### Not fixed (recorded so it is not forgotten)
+
+- `punkpeye-fastmcp-282-too-large` describes a real observed pattern whose
+  actual signal is PR **size**. There is no size detector: `structural.py`
+  checks content, not diff volume. It remains documentation, not a firing rule.
+  `pr_size` is already computed, so a size detector is feasible — it needs a
+  threshold someone will defend, which is a separate decision.
+
+### Known limits
+
+- Unchanged: never mounted in a live DSH web host. Issue #102 recruits testers.
+
 ## [2.1.8] - 2026-10-04
 
 > Found by actually walking the new-user path against the **published** wheel,

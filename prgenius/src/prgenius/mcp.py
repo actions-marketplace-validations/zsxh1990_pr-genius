@@ -68,14 +68,22 @@ def _profile_merge_rate(gl: dict) -> float:
 
 
 def _load_tools(repo_root: Path | None = None):
-    from mcp.server.fastmcp import FastMCP
+    # mcp 2.x 把 FastMCP 改名为 MCPServer (mcp.server.mcpserver)。
+    # 两个版本都支持, 不逼用户立刻升级: 1.x 仍是 `mcp>=1,<2` 的默认解析结果,
+    # 2.x 是新装的形态。构造器 / @tool / run(transport=) 三者签名一致, 所以
+    # 只有类名与导入路径不同。`_tool_manager._tools` 两个版本都是 dict ——
+    # doctor 的内省无需分叉。
+    try:  # mcp 2.x
+        from mcp.server import MCPServer as _McpServer
+    except ImportError:  # mcp 1.x
+        from mcp.server.fastmcp import FastMCP as _McpServer
     from .parser import iter_case_studies, profile_get, schema_info as _schema_info
     # 35 期评测反哺 (lesson-21 续): eval_pr 是死导入 — mcp.py 内部未调用
     # 保留给 cli.py (line 192) 使用, 这里只 import analyze_pr
     from .evaluator import analyze_pr as _analyze_pr
     from .triage import triage_pr as _triage_pr
 
-    mcp = FastMCP(name="pr-genius", instructions=(
+    mcp = _McpServer(name="pr-genius", instructions=(
         "PR Genius — Evidence-backed PR contribution advisor. "
         "analyze_pr 分析 PR 并给出改进建议, coach_pr 用于 Agent PR Dojo (pass/fail), "
         "triage_pr 做 policy-aware screening. 所有 tools 只读 — pr-genius 不写任何状态."

@@ -791,6 +791,83 @@ def check_anti_pattern_referenced(files: list[Path]) -> None:
     print(f"   anti-patterns: {len(ap_keys)}, referenced: {len(referenced_keys)}, orphans: {len(orphans)}, case studies: {case_count}")
 
 
+# loader 实际读取的字段 —— 写进 frontmatter 才算数
+_LOADER_CONSUMED = ("trigger_keywords", "match_mode", "severity", "symptom")
+# 明显的占位符, 不是真值
+_PLACEHOLDERS = {"no-keywords", "no_keywords", "todo", "tbd", "xxx", "fixme", "none", "null"}
+
+
+def check_pattern_loader_visibility() -> None:
+    """Check 4b: 字段必须写在 frontmatter 里, 否则 loader 根本看不见.
+
+    为什么需要这一层: 2026-10-04 发现 anti-patterns/ 里有文件把
+    `trigger_keywords:` 写在 **正文** (frontmatter 的收尾 `---` 之后),
+    值还是占位符 `no-keywords`. load_anti_patterns 只读 frontmatter,
+    于是这些模式 0 关键词、永不可能命中 —— 而且没有任何东西会报警.
+    一个作者把字段写错位置就静默失效, 这类腐烂必须由校验器挡.
+
+    顺带挡两类同源问题:
+      - 字段值是占位符 (no-keywords / TODO / tbd ...), 那不是真关键词;
+      - anti-patterns/ 里放着 `type: Lesson` 的文件 —— 装错目录,
+        loader 会把它当反模式数进分母.
+    """
+    print("[Check 4b] Pattern loader visibility (fields must be in frontmatter)")
+    d = ROOT / "anti-patterns"
+    if not d.is_dir():
+        print("   (no anti-patterns/ dir, skip)")
+        return
+
+    misplaced: list[str] = []
+    placeholder: list[str] = []
+    misfiled: list[str] = []
+
+    for f in sorted(d.glob("*.md")):
+        if f.name == "README.md":
+            continue
+        text = f.read_text(encoding="utf-8")
+        fm, body = parse_frontmatter(text)
+        if fm is None or "_error" in (fm or {}):
+            continue
+
+        # 1. loader 字段写在正文里 → loader 看不到
+        for field in _LOADER_CONSUMED:
+            if field in fm:
+                continue
+            # 正文里出现 `字段名:` 开头的行, 说明作者本意是给 loader 的
+            if re.search(rf"^{field}\s*:", body or "", re.MULTILINE):
+                misplaced.append(f"{f.relative_to(ROOT)}: `{field}` is in the body, not the frontmatter — load_anti_patterns will never see it")
+
+        # 2. 占位符值
+        for field in _LOADER_CONSUMED:
+            v = fm.get(field)
+            if isinstance(v, str) and v.strip().lower() in _PLACEHOLDERS:
+                placeholder.append(f"{f.relative_to(ROOT)}: `{field}` is a placeholder ({v!r}), not a real value")
+            if isinstance(v, list):
+                for item in v:
+                    if isinstance(item, str) and item.strip().lower() in _PLACEHOLDERS:
+                        placeholder.append(f"{f.relative_to(ROOT)}: `{field}` contains placeholder {item!r}")
+
+        # 3. 装错目录 —— anti-patterns/ 只该放 Anti-Pattern。
+        #    loader 会把目录里所有 .md 都当反模式数进分母, 放 Lesson/Case Study
+        #    会让覆盖率分母虚高, 也让"反模式"这个词失去意义。
+        ftype = str(fm.get("type", "")).strip()
+        if ftype and ftype != "Anti-Pattern":
+            misfiled.append(
+                f"{f.relative_to(ROOT)}: type is `{ftype}` but the file sits in anti-patterns/ "
+                f"(load_anti_patterns counts it as an anti-pattern, inflating the denominator)"
+            )
+
+    for msg in misplaced + placeholder:
+        warnings.append(msg)
+    for msg in misfiled:
+        warnings.append(msg)
+
+    print(
+        f"   misplaced-fields: {len(misplaced)}, placeholder-values: {len(placeholder)}, "
+        f"misfiled-type: {len(misfiled)}"
+    )
+
+
 try:
     from validate_checks.anti_pattern_referenced import check_profile_guideline_evidence
 except ImportError:
@@ -848,6 +925,7 @@ def main() -> int:
     root_index = ROOT / "index.md"
     check_root_index_consistency(root_index, ROOT / "profiles")
     check_anti_pattern_referenced(md_files)
+    check_pattern_loader_visibility()
     check_case_study_outcome_required(md_files)
     if check_profile_guideline_evidence:
         check_profile_guideline_evidence(md_files, parse_frontmatter, warnings, errors, ROOT)

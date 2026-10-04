@@ -1,6 +1,6 @@
 ---
 key: punkpeye-awesome-mcp-devtools-248-pending
-type: Case Study
+type: Anti-Pattern
 repo: punkpeye/awesome-mcp-devtools
 created: 2026-07-29
 anchors: [248]
@@ -10,9 +10,6 @@ updated: 2026-08-01
 confidence: medium
 
 ---
-
-trigger_keywords:
-  - no-keywords---
 
 # awesome-mcp-devtools: PR #248 Pending
 

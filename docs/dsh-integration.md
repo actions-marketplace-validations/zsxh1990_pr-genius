@@ -60,8 +60,9 @@ The MCP entry point is `prgenius-core mcp serve` (stdio). In DSH settings or
 ```bash
 git clone https://github.com/zsxh1990/pr-genius.git
 cd pr-genius
-pip install -e ./prgenius
-pip install "mcp>=1.0,<2.0"
+# [mcp] extra pulls in the MCP SDK; either generation works
+# (1.x and 2.x are both supported since 2.2.0)
+pip install -e "./prgenius[mcp]"
 ```
 
 Then configure DSH to use the local install:

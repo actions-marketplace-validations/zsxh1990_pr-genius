@@ -192,7 +192,18 @@ def run_doctor(repo_root: Optional[Path] = None) -> dict:
 
     warnings: list[str] = []
     if not kb["readable"]:
-        if kb["repo_root_source"] == "none":
+        # 顺序重要: 先判**实际使用的 root**是否存在, 再谈"来源"。
+        # repo_root_source 说的是模块自解析的结果, 与 --repo-root 无关 ——
+        # 用户传了坏路径时若先看 source, 会把"你传的路径不存在"说成
+        # "wheel 只装代码", 并错指那个路径是安装位置 (2.2.1 就这么措辞失实过)。
+        if not root.exists():
+            warnings.append(
+                f"the knowledge-base path does not exist: {root} "
+                "(pass the pr-genius git clone to --repo-root, or drop --repo-root to use the default)"
+            )
+        elif not root.is_dir():
+            warnings.append(f"the knowledge-base path is not a directory: {root}")
+        elif kb["repo_root_source"] == "none":
             # wheel 只装代码，知识库在仓库里 —— 新用户从 PyPI 装完就是这个状态。
             warnings.append(
                 "knowledge base not found — the `prgenius-core` wheel ships code only, "
