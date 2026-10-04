@@ -6,6 +6,42 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.1.7] - 2026-10-04
+
+> Cut to close two documentation gaps and — more importantly — to be the first
+> version published **from CI over npm Trusted Publishing (OIDC)**. Until now
+> every npm publish was a manual `npm publish` with a one-time password, which
+> is exactly how 2.1.2 through 2.1.5 quietly never reached npm at all.
+
+### Added
+
+- **A CLI reference covering all 20 subcommands** (issue #58). The README's Quick
+  Start showed 5 commands; `issue` and `issue-batch` (shipped in v1.6.3) had
+  never been mentioned, and 13 others were discoverable only by running
+  `--help`. Every row is taken from the real parser, and the two `issue*`
+  examples were executed against a live repo before being documented.
+
+- **A "For Contributors" walkthrough for `contributor_view`** (issue #57).
+  Previously there was one table row. Now there is the decision the tool answers
+  ("should I submit this PR yet, and what is blocking me?"), the five outcomes
+  with a next move each, and the four signals that actually move you from
+  `FIX_BEFORE_SUBMIT` to `READY_TO_SUBMIT`. Enum values were checked against
+  `contributor_view.py` rather than retyped from memory — an earlier draft of
+  this section spelled `NEEDS_DISCUSSION` wrong.
+
+### Changed
+
+- **npm publishes via Trusted Publishing (OIDC) instead of a long-lived
+  `NPM_TOKEN`.** GitHub mints a short-lived token, the npm CLI exchanges it, and
+  nothing secret is stored in the repo. Provenance attestation comes free.
+  The job requires `id-token: write`, runs Node 24 and **fails loudly** if the
+  npm on PATH is older than 11.5.1 (Node 22 ships npm 10.x) rather than
+  silently not publishing.
+
+### Known limits
+
+- Unchanged: never mounted in a live DSH web host. Issue #102 recruits testers.
+
 ## [2.1.6] - 2026-10-04
 
 > **Two release-pipeline holes found by asking "did the thing users install
