@@ -12,7 +12,7 @@ Public surface:
 
 from .parser import load, iter_profiles, iter_case_studies, profile_get, schema_info, clear_profile_cache
 
-__version__ = "2.2.2"
+__version__ = "2.2.3"
 __all__ = [
     "__version__",
     "load",

@@ -6,6 +6,34 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.2.3] - 2026-10-04
+
+> Harvest was writing "failure" into records of PRs that merged cleanly.
+
+### Fixed
+
+- **`harvest` no longer stamps successful PRs as `pr-failure`.** Both draft
+  templates hardcoded the category, so a merged PR with zero maintainer
+  feedback came out as a `pr-failure` anti-pattern with
+  Lesson/Solution/Verification left for a human to fill in. Four such shells
+  had accumulated in `anti-patterns/`; three of them were merged PRs whose own
+  record said "已合并 by @维护者" and "Root Cause: 无 maintainer 评论".
+
+  `classify_outcome()` now decides, and a `merged-clean` draft says plainly
+  that there is no signal and asks **not** to be filled in — inviting a Lesson
+  for a failure that never happened is worse than leaving it blank.
+
+- **One document could contradict itself.** The classifier counted *any* comment
+  as feedback while `Root Cause` only quotes OWNER/MEMBER/COLLABORATOR ones, so
+  a PR with only a DCO bot comment was labelled "has feedback" and printed
+  "无 maintainer 评论". Both now use the same filter.
+
+The three mislabeled records are corrected in place. `test_harvest.py` covers
+the classification and asserts the honesty property directly.
+
+698 pytest green (was 689); `validate` ×3 exit 0.
+
+
 ## [2.2.2] - 2026-10-04
 
 > Follow-up to 2.2.1: the crash was gone, the message was still wrong.
