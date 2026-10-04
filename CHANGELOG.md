@@ -6,6 +6,27 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.2.2] - 2026-10-04
+
+> Follow-up to 2.2.1: the crash was gone, the message was still wrong.
+
+### Fixed
+
+- **`doctor` now names the path that is actually wrong.** With
+  `--repo-root /tmp/nonexistent`, 2.2.1 printed the "wheel ships code only"
+  text and then called that path "where the package is installed" — it is what
+  the *user* passed. `repo_root_source` describes the module's auto-resolution
+  and has nothing to do with `--repo-root`, so checking it first routed an
+  explicitly passed bad path into the auto-detect branch.
+
+  Existence checks now come first, since they describe the root actually in
+  use: `does not exist` / `is not a directory` / `anti-patterns/ missing`, and
+  only then the wheel-ships-code message — which is accurate when it fires,
+  because in that case the path really is the install location.
+
+All four input cases verified. 689 pytest green, `validate --strict` exit 0.
+
+
 ## [2.2.1] - 2026-10-04
 
 > **The #103 fix was committed to `main` after `v2.2.0` was tagged, so 2.2.0
