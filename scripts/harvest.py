@@ -74,6 +74,34 @@ def fetch_events(repo: str, pr_number: int) -> list:
     return data if data else []
 
 
+
+def classify_outcome(pr: dict, close_reason: str, comments: list) -> str:
+    """判定这次收割有没有真失败信号.
+
+    为什么需要: 此前两个 draft 模板都**无条件**盖 `category: pr-failure` /
+    `type: Anti-Pattern`, 于是"已合并 by @维护者、无 maintainer 评论"的成功 PR
+    被收割成失败反模式 —— 2026-10-04 在 anti-patterns/ 里发现 4 条这样的空壳
+    (Lesson/Solution/Verification 全是 TODO), 其中 3 条是成功合并的 PR。
+    给不存在的失败编 Lesson, 比不写更糟。
+
+    返回:
+      "rejected"          PR 未合并即关闭 —— 有失败可记
+      "merged-with-review" 已合并但有 maintainer 评论/改动要求 —— 可提炼教训
+      "merged-clean"      已合并且无任何 maintainer 反馈 —— **没有反模式**
+    """
+    if not pr.get("merged_at"):
+        return "rejected"
+    # 只认 maintainer 评论, 与 _extract_key_comments 同一口径。
+    # 否则一条 bot 评论(例如 DCO 检查)就会把合并的 PR 标成"有反馈可提炼",
+    # 而 Root Cause 段会显示"无 maintainer 评论" —— 两段自相矛盾。
+    for c in comments:
+        if c.get("author_association", "") in ("OWNER", "MEMBER", "COLLABORATOR"):
+            body = (c.get("body") or "").strip()
+            if body and len(body) > 10:
+                return "merged-with-review"
+    return "merged-clean"
+
+
 def extract_close_reason(pr: dict, comments: list, reviews: list, events: list = None) -> str:
     """从 PR 数据中提取关闭原因"""
     reasons = []
@@ -197,13 +225,47 @@ def generate_lesson_draft(repo: str, pr: dict, close_reason: str, comments: list
     today = datetime.now().strftime("%Y-%m-%d")
     lesson_slug = re.sub(r'[^a-z0-9]+', '-', title.lower())[:40].strip('-')
 
+    outcome = classify_outcome(pr, close_reason, comments)
+    # 分类必须反映真实结果。合并 + 零反馈的 PR 没有失败可记 —— 盖 pr-failure
+    # 就是凭空造一个教训出来。severity 同理: 没有信号就不该是 medium。
+    outcome_category = {
+        "rejected": "pr-failure",
+        "merged-with-review": "pr-review-feedback",
+        "merged-clean": "merged-reference",
+    }[outcome]
+    outcome_severity = "medium" if outcome == "rejected" else "info"
+    if outcome == "merged-clean":
+        # 三段都留白并说清原因。给"没有失败的 PR"写教训指引, 等于邀请别人
+        # 编造一个没发生过的失败 —— 那比空着更糟。
+        lesson_block = (
+            "\n> **没有失败信号，此处有意留空。** 这个 PR 已合并、且没有任何 "
+            "maintainer 评论或改动要求，不存在可提炼的反模式或教训。保留本记录仅作"
+            "已收割标记。**不要往这里填 Lesson** —— 那会制造一条声称发生了实际并"
+            "未发生的失败。\n"
+        )
+        solution_block = "\n> 无 —— 没有失败需要修复。\n"
+        verification_block = "\n> 无。\n"
+    else:
+        lesson_block = (
+            "\n> 根据上述信息，提炼以下可复用教训：\n"
+            "> - 理解仓库的 PR 接受标准（标题、范围、关联 Issue）\n"
+            "> - 提交前自查 CI 状态和代码质量\n"
+            "> - 关注 maintainer 的反馈模式，避免重复同类错误\n"
+        )
+        solution_block = "\n> 如有明确修复方案，在此补充。否则标记为\"需人工审查\"。\n"
+        verification_block = (
+            "\n> 如何验证教训已内化：\n"
+            "> - 下次提 PR 前用 `python3 -m prgenius coach` 检查\n"
+            "> - 对照本 lesson 的 Root Cause 逐项自查\n"
+        )
+
     return f"""---
 type: Lesson
 title: "{title[:80]}"
 source: "{repo}#{pr_number}"
 source_url: "{pr['html_url']}"
-category: pr-failure
-severity: medium
+category: {outcome_category}
+severity: {outcome_severity}
 learned_at: {today}
 ---
 
@@ -225,20 +287,15 @@ PR [{repo}#{pr_number}]({pr["html_url"]}) {close_reason}。
 
 ## Lesson
 
-> 根据上述信息，提炼以下可复用教训：
-> - 理解仓库的 PR 接受标准（标题、范围、关联 Issue）
-> - 提交前自查 CI 状态和代码质量
-> - 关注 maintainer 的反馈模式，避免重复同类错误
+{lesson_block}
 
 ## Solution
 
-> 如有明确修复方案，在此补充。否则标记为"需人工审查"。
+{solution_block}
 
 ## Verification
 
-> 如何验证教训已内化：
-> - 下次提 PR 前用 `python3 -m prgenius coach` 检查
-> - 对照本 lesson 的 Root Cause 逐项自查
+{verification_block}
 """
 
 

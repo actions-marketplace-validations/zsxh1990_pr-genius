@@ -3,8 +3,8 @@ type: Anti-Pattern
 title: "docs: sync README numbers to actual 275 indexed lessons"
 source: "Ikalus1988/MisakaNet#965"
 source_url: "https://github.com/Ikalus1988/MisakaNet/pull/965"
-category: pr-failure
-severity: medium
+category: merged-reference
+severity: info
 learned_at: 2026-08-13
 ---
 
@@ -43,12 +43,14 @@ cc @Ikalus1988
 
 ## Lesson
 
-TODO: 从上述信息中提炼可复用的教训
+> **没有失败信号，此处有意留空。** 这个 PR 已合并、且没有任何 maintainer
+> 评论或改动要求，不存在可提炼的反模式或教训。保留本记录仅作已收割标记。
+> **不要往这里填 Lesson** —— 那会制造一条声称发生了实际并未发生的失败。
 
 ## Solution
 
-TODO: 如果有修复方案，在此记录
+> 无 —— 没有失败需要修复。
 
 ## Verification
 
-TODO: 如何验证教训已内化
+> 无。
