@@ -201,6 +201,14 @@ def run_doctor(repo_root: Optional[Path] = None) -> dict:
                 "(or export PRGENIUS_REPO_ROOT=<clone>). "
                 f"Looked near {root} (that path is not a repo root, just where the package is installed)"
             )
+        elif not root.exists():
+            # 路径根本不存在 —— 说"anti-patterns/ missing"是误导, 用户会去找目录
+            warnings.append(
+                f"--repo-root points at a path that does not exist: {root} "
+                "(pass the pr-genius git clone, or drop --repo-root to use the default)"
+            )
+        elif not root.is_dir():
+            warnings.append(f"--repo-root is not a directory: {root}")
         else:
             warnings.append(f"knowledge base not readable at {root} (anti-patterns/ missing)")
     missing_kw = anti_total - anti_with_kw - anti_json

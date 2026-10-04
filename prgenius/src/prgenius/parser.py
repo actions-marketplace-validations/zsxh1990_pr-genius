@@ -304,6 +304,21 @@ def parse_frontmatter(text: str) -> dict:
 
 # ---------- higher-level iterators ----------
 
+def _iter_dir(path: Path) -> list[Path]:
+    """列出目录条目; 目录不存在或不可读时返回空表, 不抛.
+
+    为什么: `--repo-root` 传了不存在的路径时, `root.iterdir()` 直接
+    FileNotFoundError 冒成 traceback —— 用户只想要一句"这个路径不对"。
+    取数函数不该因为输入不存在就崩; 它们返回空, 由调用方决定怎么报
+    (doctor 会说 knowledge base not readable, 这才是用户该看到的)。
+    """
+    try:
+        return sorted(path.iterdir())
+    except (FileNotFoundError, NotADirectoryError, PermissionError, OSError):
+        return []
+
+
+
 def iter_profiles(repo_root: str | Path) -> Iterator[dict]:
     """Yield each Repo Profile dict under `<repo_root>/<folder>/index.md` or `<repo_root>/profiles/<folder>/index.md`."""
     root = Path(repo_root)
@@ -317,7 +332,7 @@ def iter_profiles(repo_root: str | Path) -> Iterator[dict]:
     }
 
     # Scan root-level profile dirs
-    for sub in sorted(root.iterdir()):
+    for sub in _iter_dir(root):
         if not sub.is_dir() or sub.name in skip or sub.name.startswith("."):
             continue
         idx = sub / "index.md"
@@ -331,7 +346,7 @@ def iter_profiles(repo_root: str | Path) -> Iterator[dict]:
     # Scan profiles/ subdirectory
     profiles_dir = root / "profiles"
     if profiles_dir.is_dir():
-        for sub in sorted(profiles_dir.iterdir()):
+        for sub in _iter_dir(profiles_dir):
             if not sub.is_dir() or sub.name.startswith("."):
                 continue
             idx = sub / "index.md"
@@ -346,7 +361,11 @@ def iter_profiles(repo_root: str | Path) -> Iterator[dict]:
 def iter_case_studies(repo_root: str | Path) -> Iterator[dict]:
     """Yield each PR Case Study dict under repo root."""
     root = Path(repo_root)
-    for path in sorted(root.rglob("pr-*.md")):
+    try:
+        _case_paths = sorted(root.rglob("pr-*.md"))
+    except (FileNotFoundError, NotADirectoryError, PermissionError, OSError):
+        _case_paths = []
+    for path in _case_paths:
         try:
             loaded = load(path)
         except Exception:
