@@ -164,7 +164,7 @@ def _sample_block(repo_root: Path) -> dict:
 
 def run_doctor(repo_root: Optional[Path] = None) -> dict:
     """Run all self-checks and return a machine-readable report."""
-    from .utils import get_repo_root
+    from .utils import get_repo_root, get_repo_root_source
 
     root = Path(repo_root) if repo_root else get_repo_root()
 
@@ -173,6 +173,10 @@ def run_doctor(repo_root: Optional[Path] = None) -> dict:
 
     kb = {
         "repo_root": str(root),
+        # 解析来源。`none` = 没找到知识库，上面这个 root **不是** repo root
+        # （wheel 安装时它会落在 site-packages 的上级 lib/ 目录，看着像路径
+        # 其实不是）。如实报出来，别让新用户对着一个假路径排查。
+        "repo_root_source": get_repo_root_source(),
         "readable": (root / "anti-patterns").is_dir(),
         "anti_patterns": anti_total,
         "anti_patterns_with_trigger_keywords": anti_with_kw,
@@ -188,7 +192,17 @@ def run_doctor(repo_root: Optional[Path] = None) -> dict:
 
     warnings: list[str] = []
     if not kb["readable"]:
-        warnings.append(f"knowledge base not readable at {root} (anti-patterns/ missing)")
+        if kb["repo_root_source"] == "none":
+            # wheel 只装代码，知识库在仓库里 —— 新用户从 PyPI 装完就是这个状态。
+            warnings.append(
+                "knowledge base not found — the `prgenius-core` wheel ships code only, "
+                "the corpus lives in the git repo. Clone it and point at it: "
+                "`python3 -m prgenius --repo-root <clone> doctor` "
+                "(or export PRGENIUS_REPO_ROOT=<clone>). "
+                f"Looked near {root} (that path is not a repo root, just where the package is installed)"
+            )
+        else:
+            warnings.append(f"knowledge base not readable at {root} (anti-patterns/ missing)")
     missing_kw = anti_total - anti_with_kw - anti_json
     if missing_kw > 0:
         # 分母是 md 模式数，不是总数：JSON 模式**有意**不带 trigger_keywords

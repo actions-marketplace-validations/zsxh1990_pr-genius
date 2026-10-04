@@ -86,7 +86,17 @@ PR Genius is also a **DSH (Cordis) plugin** that slots into the DeepSeek Harness
 ## 🚀 Quick Start
 
 ```bash
+# Code only. Add [mcp] if you want the MCP server.
 pip install prgenius-core
+pip install "prgenius-core[mcp]"     # + the MCP engine
+
+# The knowledge bundle is NOT in the wheel — it lives in this git repo.
+# Clone it and point the CLI at it (or export PRGENIUS_REPO_ROOT=<clone>).
+git clone https://github.com/zsxh1990/pr-genius.git
+export PRGENIUS_REPO_ROOT="$PWD/pr-genius"
+
+# Sanity check: prints what it found and what is missing
+prgenius-core doctor
 
 # Analyze PR
 python3 -m prgenius analyze "feat: add feature" --repo org/repo --body "Fixes #123"
@@ -103,6 +113,51 @@ python3 -m prgenius status --author zsxh1990 --format json --save-snapshot
 
 # Profile writeback suggestions (dry-run)
 python3 -m prgenius profile writeback --author zsxh1990
+```
+
+> **First run of `doctor` matters.** It tells you whether the knowledge bundle
+> was found and which optional pieces are missing. `overall: NOT OK` after a
+> bare `pip install` is expected — it is the wheel containing code only, not a
+> broken install. The warning names exactly what to do.
+
+### CLI reference
+
+The console script is `prgenius-core`; `python3 -m prgenius` is equivalent.
+Every command takes a global `--repo-root` to point at a knowledge-base checkout.
+
+| Command | What it does | Key flags |
+|---|---|---|
+| `analyze` | PR analysis + improvement suggestions | `title`, `--repo`, `--body`, `--diff-stat` |
+| `eval` | Older three-tier assessment (kept for compatibility) | `title`, `--repo` |
+| `coach` | Agent PR dojo — exit 0 = pass, 1 = fail | `title`, `--repo`, `--body` |
+| `triage` | Policy-aware preflight checks | `title`, `--repo`, `--diff-stat` |
+| `doctor` | Install / knowledge-base / `gh` / MCP self-test | `--format json` |
+| `suggest` | Alias of `analyze` | same as `analyze` |
+| `harvest` | Rejected PR → anti-pattern / lesson draft | `owner/repo [number]` |
+| `profile get` | Show a repo profile | `owner/repo` |
+| `profile writeback` | Profile update suggestions (dry-run) | `--author` |
+| `case list` | List case studies | `--repo` |
+| `schema info` | Supported OKF schema versions | — |
+| `status` | Health of in-flight outbound PRs | `--author`, `--format json`, `--save-snapshot` |
+| `update-issue` | Refresh a pinned GitHub issue with heartbeat status | `--author`, `--issue` |
+| `auto-ping` | Suggest pings for stale PRs (**dry-run**; `--confirm` to act) | `--author`, `--confirm` |
+| `auto-rebase` | Suggest rebases for PRs that need one (**dry-run**; `--confirm`) | `--author`, `--confirm` |
+| `dump` | NDJSON dump of every case | `--out` |
+| `mcp serve` | Run the MCP server on stdio | — |
+| `maintainer` | Maintainer action decision for one PR (5 actions) | `title`, `--repo` |
+| `review-queue` | Build a prioritised review-queue digest | `--prs-file` |
+| `issue` | Score/evaluate a single issue | `--repo`, `--number`, `--format` |
+| `issue-batch` | Score many issues at once | `--repo`, `--state`, `--label`, `--limit`, `--format` |
+
+`issue` and `issue-batch` were added in v1.6.3. Examples:
+
+```bash
+# One issue
+python3 -m prgenius issue --repo Ikalus1988/MisakaNet --number 2792
+
+# A labelled batch, machine-readable
+python3 -m prgenius issue-batch --repo Ikalus1988/MisakaNet \
+  --state open --label question --limit 50 --format json
 ```
 
 ## 🤖 GitHub Action
@@ -280,6 +335,47 @@ All tunables are Schemastery-validated and settable from `cordis.yml` — no cod
 The DSH plugin wraps the same Python analysis engine (`prgenius/src/prgenius/mcp.py`). v1.x CLI and MCP server continue to work unchanged. The plugin adds UI surfaces and config management; it does not fork the analysis logic.
 
 > **Honesty note**: The DSH plugin has been verified for TypeScript compilation, unit tests, and static contract conformance (`scripts/check_dsh_plugin_contract.py`, 27/27 checks). It has **not** been run against a live DSH runtime — rendering and runtime behavior require DSH verification. See [`docs/compatibility.md`](docs/compatibility.md) for the version matrix (every cell marked unrun) and [`docs/maturity-self-assessment.md`](docs/maturity-self-assessment.md) for the completeness scorecard.
+
+## 🧑‍💻 For Contributors
+
+`maintainer_view` answers "what should the *maintainer* do with this PR?"
+`contributor_view` answers the other side: "**should I submit this PR yet, and
+what is blocking me?**" It is the pre-submission gate — run it *before* opening
+the PR, then again whenever you change something.
+
+```bash
+python3 -m prgenius coach "fix: timeout in connection pool" \
+  --repo encode/httpx --body "Fixes #4821"
+```
+
+or over MCP as `contributor_view` (same engine, `title` + `repo` required).
+
+### The 5 outcomes and what to do about each
+
+| Decision | Meaning | Your next move |
+|---|---|---|
+| `READY_TO_SUBMIT` | Nothing structural is blocking | Open the PR |
+| `FIX_BEFORE_SUBMIT` | Concrete, fixable defects found | Fix the listed checklist items, re-run, then submit |
+| `NEEDS_DISCUSSION` | Breaking change, core, or security surface | Open an issue first; a large surprise PR gets closed |
+| `IMPROVE_CHANCE` | Not blocking, but it could be better | Optional — raise odds (tests, issue link, `diff-stat`) |
+| `ASK_MAINTAINER` | Genuinely unclear from here | Ask the maintainer before investing more work |
+
+### What moves you from `FIX_BEFORE_SUBMIT` to `READY_TO_SUBMIT`
+
+Signals the evaluator weighs most, in practice:
+
+1. **Link an issue.** `Fixes #N` / `Closes #N` in the body — the single most
+   common reason a first PR gets bounced.
+2. **Keep it small.** Size comes from `--diff-stat` (`git diff --stat` output).
+   Without `diff-stat` the impact/review fields are `null`, so pass it.
+3. **Tests that fail without your change.** A test that passes either way is
+   decoration.
+4. **Match the repo's conventions**, not the global ones — read that repo's
+   profile first (`python3 -m prgenius profile get owner/name`). The rules
+   differ per project; that is the point of the knowledge base.
+
+The maintainer-side five actions are the mirror image — see the `maintainer_view`
+row in the [MCP tools](#-mcp-configuration) table.
 
 ## 📊 Data Scale
 

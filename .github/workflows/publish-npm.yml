@@ -6,6 +6,12 @@ name: publish-npm
 # 那个 slot 名是臆造的、组件是 null 的 2.1.1。版本漂移不写在任何 diff 里，只有去查
 # registry 才看得见 —— 所以发版路径要一条都不能缺。
 #
+# 认证走 npm Trusted Publishing (OIDC)：**没有长期 NPM_TOKEN**。
+#   - 工作流拿到的是 GitHub 签的短时 OIDC token，npm 侧验完即弃；
+#   - 不需要在仓库里存 secret，也就没有 secret 泄漏/轮换这件事；
+#   - provenance 证明自动附上（公开仓 + 公开包）。
+# 一次性配置在 npmjs.com 包设置里做（见下方 "Trusted Publisher" 注释）。
+#
 # 发布前置：package.json 的 prepublishOnly 会跑 build + test + smoke:release，
 # 任一失败就不发布（npm 自己会中断）。
 
@@ -21,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # OIDC 必需。没有这条 npm 拿不到身份，发布会被拒。
+      id-token: write
 
     steps:
       - name: Checkout
@@ -34,11 +42,28 @@ jobs:
         with:
           version: 10
 
+      # Node 24 自带 npm 11.x。Trusted Publishing 要求 **npm CLI >= 11.5.1**
+      # （Node 22 自带 npm 10.x，不够）。下面是硬校验，不够就红，不静默降级成
+      # "看起来发布了其实没发"。
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
           cache: pnpm
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify npm supports trusted publishing
+        run: |
+          npm -v
+          NPM_VERSION="$(npm -v)" node -e '
+            const v = process.env.NPM_VERSION;
+            const [maj, min, pat] = v.split(".").map(Number);
+            const ok = maj > 11 || (maj === 11 && (min > 5 || (min === 5 && pat >= 1)));
+            if (!ok) {
+              console.error(`npm ${v} does not support OIDC trusted publishing (need >= 11.5.1)`);
+              process.exit(1);
+            }
+            console.log(`npm ${v} OK for trusted publishing`);
+          '
 
       # test/surface-data.test.ts 拉起真的 Python FastMCP 子进程取数，
       # 没有 Python 侧就报 "pr-genius MCP server exited (code=1)" —— 与
@@ -58,7 +83,6 @@ jobs:
       - name: Build, test and release smoke gate
         run: npm run build && npm test && npm run smoke:release
 
-      - name: Publish to npm
+      # 不传 NODE_AUTH_TOKEN —— npm CLI 检测到 OIDC 环境会自己换短期 token。
+      - name: Publish to npm (trusted publishing, no token)
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
