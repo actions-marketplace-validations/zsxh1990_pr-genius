@@ -6,6 +6,59 @@ description: Changelog following Keep a Changelog format + GitHub compare links
 # Changelog
 
 
+## [2.2.0] - 2026-10-04
+
+> Two pieces of convergence work: make the corpus's own rules enforceable, and
+> let the `mcp` extra install on either generation of the SDK.
+
+### Added
+
+- **Check 4b — pattern loader visibility.** `load_anti_patterns` reads only
+  frontmatter, but nothing checked that the fields it consumes were actually
+  written there. Two pattern files carried `trigger_keywords:` *in the body*,
+  after the closing `---`, with the placeholder value `no-keywords` — so those
+  patterns loaded with zero keywords and could never fire, and no tool said so.
+  The check reports three classes: a loader-consumed field sitting in the body,
+  a placeholder value (`no-keywords` / `TODO` / `tbd` / …), and a file whose
+  `type` is not `Anti-Pattern` while living in `anti-patterns/`.
+
+  Each class was verified by injecting it and watching the counter move, not by
+  reading the code and believing it.
+
+- **mcp 2.x support.** The `mcp` extra now installs on `mcp>=1.0,<3.0`.
+  Dependabot opened exactly this widening (PR #88) and it broke every install,
+  because mcp 2.x renames `FastMCP` to `MCPServer` — the widening was right and
+  the migration was missing. `mcp.py` now imports whichever generation is
+  installed; the API surface we use (constructor, `@tool(annotations=…)`,
+  `run(transport=…)`) is identical across both. `_tool_manager._tools` is still
+  a plain dict in 2.x, so `doctor`'s introspection needed no fork.
+
+### Fixed
+
+- **Five pattern files carried the wrong `type`.** `anti-patterns/` holds 56
+  files typed `Anti-Pattern`; five said `Lesson` or `Case Study`. The loader
+  counts every file in that directory as an anti-pattern and the case studies
+  reference these keys as anti-patterns, so the mismatch inflated the coverage
+  denominator and made "anti-pattern" mean two things. Normalised.
+
+- **Two pattern files leaked a malformed frontmatter block into the body**,
+  including a `---` glued onto the placeholder value. Removed. No keywords were
+  invented to replace them — the honest state is "no keyword detector", and
+  fabricating values to lift coverage is what the evidence gate forbids
+  elsewhere.
+
+### Not fixed (recorded so it is not forgotten)
+
+- `punkpeye-fastmcp-282-too-large` describes a real observed pattern whose
+  actual signal is PR **size**. There is no size detector: `structural.py`
+  checks content, not diff volume. It remains documentation, not a firing rule.
+  `pr_size` is already computed, so a size detector is feasible — it needs a
+  threshold someone will defend, which is a separate decision.
+
+### Known limits
+
+- Unchanged: never mounted in a live DSH web host. Issue #102 recruits testers.
+
 ## [2.1.8] - 2026-10-04
 
 > Found by actually walking the new-user path against the **published** wheel,
