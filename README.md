@@ -334,7 +334,7 @@ All tunables are Schemastery-validated and settable from `cordis.yml` — no cod
 
 The DSH plugin wraps the same Python analysis engine (`prgenius/src/prgenius/mcp.py`). v1.x CLI and MCP server continue to work unchanged. The plugin adds UI surfaces and config management; it does not fork the analysis logic.
 
-> **Honesty note**: The DSH plugin has been verified for TypeScript compilation, unit tests, and static contract conformance (`scripts/check_dsh_plugin_contract.py`, 27/27 checks). It has **not** been run against a live DSH runtime — rendering and runtime behavior require DSH verification. See [`docs/compatibility.md`](docs/compatibility.md) for the version matrix (every cell marked unrun) and [`docs/maturity-self-assessment.md`](docs/maturity-self-assessment.md) for the completeness scorecard.
+> **Honesty note**: The DSH plugin has been verified for TypeScript compilation, unit tests, and static contract conformance (`scripts/check_dsh_plugin_contract.py`, 27/27 checks). It **has** been run in a live DSH runtime — that is how issues #100, #101 and #103 were found and filed. What is still unverified is the **current** code: the fixes shipped in 2.1.5 and later have not been re-verified in a host. Rendering and runtime behaviour of this release require that re-check. See [`docs/compatibility.md`](docs/compatibility.md) for the version matrix (every cell marked unrun) and [`docs/maturity-self-assessment.md`](docs/maturity-self-assessment.md) for the completeness scorecard.
 
 ## 🧑‍💻 For Contributors
 

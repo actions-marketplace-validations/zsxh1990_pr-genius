@@ -8,7 +8,8 @@
  * 架构：TS 只是壳与投影 —— 直读知识库静态数据文件，分析一律调用现有 Python
  * FastMCP 服务 (prgenius/src/prgenius/mcp.py)。绝不重写分析逻辑。
  *
- * 诚实边界：本机没有 DEEPSEEK_API_KEY，未跑真 DSH。本文件只保证 TypeScript
+ * 诚实边界：插件曾在真 DSH 宿主跑过（issue #100/#101/#103 即真机暴露）；本机没有
+ * DEEPSEEK_API_KEY，2.1.5 起的修复未经真机复验。本文件只保证 TypeScript
  * 编译、单元测试与静态契约自洽；渲染与运行时行为需 DSH 运行时验证，本机未执行。
  */
 import type { Context } from '@deepseek-ai/cordis'

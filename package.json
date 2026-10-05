@@ -66,9 +66,9 @@
     },
     "compatibility": {
       "dshReleases": {
-        "0.1.5-rc.1": "planned",
-        "0.1.7-rc.2": "planned",
-        "0.2.0-rc.2": "planned"
+        "0.1.5-rc.1": "unknown",
+        "0.1.7-rc.2": "unknown",
+        "0.2.0-rc.2": "compatible"
       }
     }
   },

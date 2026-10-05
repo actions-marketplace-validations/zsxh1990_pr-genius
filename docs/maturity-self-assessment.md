@@ -12,7 +12,7 @@ confidence: high
 
 > **自评对象**：`feat/dsh-plugin-foundation`（commit `351c01a`）
 > **自评日期**：2026-10-03
-> **前置声明**：本机没有 `DEEPSEEK_API_KEY`，**从未在真实 DeepSeek Harness 里加载过本插件**。
+> **前置声明**：本机没有 `DEEPSEEK_API_KEY`。插件**曾在真实 DeepSeek Harness 里加载过** —— issue #100/#101/#103 就是真机暴露的；但 2.1.5 起的修复尚未在真机复验。
 > 一切运行时结论都标为「未跑」。下面的分数只覆盖能被命令、文件和测试证实的部分。
 
 ---

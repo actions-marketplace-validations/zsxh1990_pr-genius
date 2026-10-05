@@ -133,7 +133,7 @@ upgrade.
 
 ### Known limits
 
-- Unchanged: never mounted in a live DSH web host. Issue #102 recruits testers.
+- The plugin **has** been run in a live DSH web host — that is how issues #100, #101 and #103 were found. What is unverified is the *current* fixes: 2.1.5 and later have not been re-verified in a host. Issue #102 recruits for that.
 
 ## [2.1.8] - 2026-10-04
 
@@ -183,7 +183,7 @@ gate).
 
 ### Known limits
 
-- Unchanged: never mounted in a live DSH web host. Issue #102 recruits testers.
+- The plugin **has** been run in a live DSH web host — that is how issues #100, #101 and #103 were found. What is unverified is the *current* fixes: 2.1.5 and later have not been re-verified in a host. Issue #102 recruits for that.
 
 ## [2.1.7] - 2026-10-04
 
@@ -219,7 +219,7 @@ gate).
 
 ### Known limits
 
-- Unchanged: never mounted in a live DSH web host. Issue #102 recruits testers.
+- The plugin **has** been run in a live DSH web host — that is how issues #100, #101 and #103 were found. What is unverified is the *current* fixes: 2.1.5 and later have not been re-verified in a host. Issue #102 recruits for that.
 
 ## [2.1.6] - 2026-10-04
 
@@ -260,7 +260,7 @@ gate).
 
 ### Known limits
 
-- Same as 2.1.5: never mounted in a live DSH web host (no `DEEPSEEK_API_KEY`).
+- Same as 2.1.5: the plugin has run in a real DSH host (source of #100/#101/#103), but these fixes have not been re-verified there.
   Issue #102 recruits testers. The React fix is verifiable without a host —
   the bundle no longer contains a second React — but "the surfaces render in a
   host that has its own React" still needs someone with a host.
@@ -353,7 +353,7 @@ gate).
 
 ### Known limits
 
-- **Still never mounted in a live DSH web host.** There is no `DEEPSEEK_API_KEY`
+- **The fixes still need re-verification in a live DSH web host.** The plugin itself has run in one — that is how #100/#101/#103 were reported — but this release's changes have not been re-tested there. There is no `DEEPSEEK_API_KEY`
   on this machine. What is proven: `apply()` emits registrations that land on
   SDK-declared seats with non-null components, under both a permissive host and a
   denyRead-semantics host, against the packed tarball. What is not: that anything
@@ -392,7 +392,7 @@ machine.
 
 The gate proves `apply()` emits calls that land on SDK-declared seats with a
 non-null component. It does **not** prove anything renders — no `DEEPSEEK_API_KEY`
-here, and pr-genius has never mounted in a real DSH web host.
+here. (pr-genius *has* been mounted in a real DSH web host — that is where #100/#101/#103 came from — but not since these fixes.)
 
 
 ## [2.1.3] - 2026-10-03

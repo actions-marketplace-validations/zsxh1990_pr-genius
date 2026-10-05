@@ -868,6 +868,45 @@ def check_pattern_loader_visibility() -> None:
     )
 
 
+def check_dsh_manifest_contract() -> None:
+    """Check 4c: package.json 的 dsh.compatibility.dshReleases 只能用契约允许的值.
+
+    契约出处: DSH-Store registry/README.md —— "声明值只接受 compatible、
+    incompatible 或 unknown; 未声明的版本写为 unknown"。
+    2026-10-05 自动检查报 AUTOMATIC_POLICY_REJECTED, 因为我们写的是 "planned"
+    (不在允许集合里)。这类枚举写错没有任何本地反馈, 只有等外部扫描器发现,
+    所以要进 validate。
+
+    注意诚实性: 值本身必须反映实测结果。插件曾在真 DSH 宿主跑过 (issue
+    #100/#101/#103 即真机暴露), 但 2.1.5 起的修复未复验 —— 所以某个版本标
+    compatible/incompatible 由维护者的实测决定, 校验器不替你判断。这里只挡
+    "planned" 这类非法枚举。
+    """
+    print("[Check 4c] DSH manifest compatibility contract")
+    allowed = {"compatible", "incompatible", "unknown"}
+    p = ROOT / "package.json"
+    if not p.is_file():
+        print("   (no package.json, skip)")
+        return
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except ValueError as e:
+        errors.append(f"package.json: unreadable JSON: {e}")
+        return
+    rel = data.get("dsh", {}).get("compatibility", {}).get("dshReleases")
+    if rel is None:
+        print("   (no dsh.compatibility.dshReleases, skip)")
+        return
+    bad = [f"{k}={v!r}" for k, v in rel.items() if v not in allowed]
+    if bad:
+        errors.append(
+            "package.json dsh.compatibility.dshReleases: value must be one of "
+            f"{sorted(allowed)} — got {', '.join(bad)} "
+            "(DSH-Store rejects the whole entry on this)"
+        )
+    print(f"   dshReleases: {len(rel)} entries, {len(bad)} invalid")
+
+
 try:
     from validate_checks.anti_pattern_referenced import check_profile_guideline_evidence
 except ImportError:
@@ -926,6 +965,7 @@ def main() -> int:
     check_root_index_consistency(root_index, ROOT / "profiles")
     check_anti_pattern_referenced(md_files)
     check_pattern_loader_visibility()
+    check_dsh_manifest_contract()
     check_case_study_outcome_required(md_files)
     if check_profile_guideline_evidence:
         check_profile_guideline_evidence(md_files, parse_frontmatter, warnings, errors, ROOT)
