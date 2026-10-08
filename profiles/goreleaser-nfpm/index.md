@@ -9,6 +9,7 @@ language: Go
 zsxh_pr_count: 0
 status: research-only
 analyzed_at: 2026-07-09
+needs_reverify: true   # 分析已超期，尚未复验 —— 不刷新 analyzed_at 来消音
 data_source: cross-validation report (37 PR sample)
 agent_guidelines:
   allow_unsolicited_pr: true

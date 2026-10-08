@@ -753,6 +753,77 @@ def cmd_auto_rebase(args) -> int:
 # maintainer — Maintainer view (v1.5.0)
 # ============================================================
 
+# contributor — Contributor view (issue #106)
+# ============================================================
+
+def cmd_contributor_view(args) -> int:
+    """Contributor-facing action decision for a single PR.
+
+    Output answers: "Should I submit this PR yet, and what is blocking me?"
+    Actions: READY_TO_SUBMIT | FIX_BEFORE_SUBMIT | NEEDS_DISCUSSION |
+             IMPROVE_CHANCE | ASK_MAINTAINER
+
+    Mirrors `maintainer`, which has had a CLI entry since v1.5.0 while this one
+    shipped MCP-only (issue #106). Note `--diff-stat`: without it the impact and
+    review fields are null, and PR size — a real signal — is unavailable.
+    """
+    from .contributor_view import contributor_view
+
+    repo_root = _get_repo_root(args)
+    body = args.body or ""
+    if args.body_file:
+        try:
+            body = Path(args.body_file).read_text(encoding="utf-8")
+        except (OSError, FileNotFoundError) as e:
+            print(f"Error reading body file: {e}", file=sys.stderr)
+            return 1
+
+    result = contributor_view(
+        title=args.title,
+        description=args.description or "",
+        repo=args.repo,
+        body=body,
+        labels=args.labels or [],
+        author=args.author or "",
+        author_association=args.author_association or "NONE",
+        star_count=args.star_count or 0,
+        repo_merge_rate=args.repo_merge_rate or 0.0,
+        diff_stat=args.diff_stat or "",
+        repo_root=repo_root,
+    )
+
+    if args.format == "json":
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        print(f"{result.get('action_icon', '•')} Contributor Action: {result['action']}")
+        print(f"   Label: {result.get('action_label', '')}")
+        print(f"   Repo: {result['repo']}")
+        print(f"   Title: {result['title']}")
+        print(f"   Reason: {result['reason']}")
+        print(f"   Next step: {result['next_step']}")
+        checklist = result.get("checklist") or []
+        if not checklist:
+            print("   Checklist: none")
+        else:
+            print("   Checklist:")
+            for c in checklist:
+                # 项是 {item, command, priority} 结构 —— 直接 str() 会打印 dict 原样
+                if isinstance(c, dict):
+                    item = c.get("item") or c.get("text") or ""
+                    cmd = c.get("command") or c.get("fix_action") or ""
+                    pri = c.get("priority") or ""
+                    tail = f" — {cmd}" if cmd else ""
+                    print(f"     [{pri or '-'}] {item}{tail}")
+                else:
+                    print(f"     - {c}")
+        print(f"   Confidence: {result.get('confidence', '?')}")
+        mp = result.get("merge_probability")
+        basis = result.get("merge_probability_basis", "unknown")
+        degraded = result.get("merge_probability_degraded", False)
+        print(f"   Merge probability: {mp} (basis: {basis}{'; DEGRADED' if degraded else ''})")
+    return 0
+
+
 def cmd_maintainer_view(args) -> int:
     """Maintainer-facing action decision for a single PR.
 
@@ -1226,6 +1297,37 @@ def main(argv: list[str] | None = None) -> int:
     mv.add_argument("--repo-merge-rate", type=float, default=0.0, help="Repo merge rate 0-1")
     mv.add_argument("--format", "-f", choices=["text", "json"], default="text", help="Output format")
     mv.set_defaults(func=cmd_maintainer_view)
+
+    # ---- contributor (issue #106) ----
+    cv = sub.add_parser(
+        "contributor",
+        help="Contributor view — 'should I submit yet?' (5 actions: READY_TO_SUBMIT / FIX_BEFORE_SUBMIT / NEEDS_DISCUSSION / IMPROVE_CHANCE / ASK_MAINTAINER)",
+        description=(
+            "Contributor-facing decision: 'Should I submit this PR yet, and what is blocking me?'.\n"
+            "Mirrors `maintainer`. Reuses analyze_pr signals, maps to 5 contributor actions.\n"
+            "read-only / advisory-only — never opens, edits, or comments on anything.\n"
+            "Pass --diff-stat (git diff --stat output): without it impact/review are null\n"
+            "and PR size — a real signal — is unavailable."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  prgenius contributor 'fix: typo' --repo encode/httpx --body 'Fixes #1'\n"
+            "  prgenius contributor 'feat: x' --repo org/repo --diff-stat 'a.py | 12 +++++' --format json\n"
+        ),
+    )
+    cv.add_argument("title", help="PR title")
+    cv.add_argument("--repo", "-r", required=True, help="Target repo (org/name)")
+    cv.add_argument("--body", "-b", default="", help="PR body")
+    cv.add_argument("--body-file", default="", help="Read PR body from file")
+    cv.add_argument("--description", "-d", default="", help="PR description")
+    cv.add_argument("--labels", "-l", nargs="*", default=[], help="PR labels")
+    cv.add_argument("--author", "-a", default="", help="PR author")
+    cv.add_argument("--author-association", default="NONE", help="Author association")
+    cv.add_argument("--star-count", type=int, default=0, help="Repo star count")
+    cv.add_argument("--repo-merge-rate", type=float, default=0.0, help="Repo merge rate 0-1")
+    cv.add_argument("--diff-stat", default="", help="git diff --stat output (populates impact/review + PR size)")
+    cv.add_argument("--format", "-f", choices=["text", "json"], default="text", help="Output format")
+    cv.set_defaults(func=cmd_contributor_view)
 
     # ---- review-queue (v1.5.0) ----
     rq = sub.add_parser(

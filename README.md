@@ -145,6 +145,7 @@ Every command takes a global `--repo-root` to point at a knowledge-base checkout
 | `dump` | NDJSON dump of every case | `--out` |
 | `mcp serve` | Run the MCP server on stdio | — |
 | `maintainer` | Maintainer action decision for one PR (5 actions) | `title`, `--repo` |
+| `contributor` | Contributor decision — submit yet? (5 actions) | `title`, `--repo`, `--diff-stat` |
 | `review-queue` | Build a prioritised review-queue digest | `--prs-file` |
 | `issue` | Score/evaluate a single issue | `--repo`, `--number`, `--format` |
 | `issue-batch` | Score many issues at once | `--repo`, `--state`, `--label`, `--limit`, `--format` |

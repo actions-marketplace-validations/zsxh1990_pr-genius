@@ -11,6 +11,7 @@ default_branch: main
 zsxh_pr_count: 10
 status: active
 analyzed_at: 2026-07-09
+needs_reverify: true   # 分析已超期，尚未复验 —— 不刷新 analyzed_at 来消音
 data_source: 内部项目，直接访问
 agent_guidelines:
   allow_unsolicited_pr: true
