@@ -33,6 +33,7 @@ SUBCOMMANDS = [
     "dump",
     "mcp",
     "maintainer",
+    "contributor",
     "review-queue",
     "issue",
     "issue-batch",
@@ -317,3 +318,66 @@ def test_doctor_subcommand_json(capsys):
     # exit 0 = OK, 1 = hard failure — either is a valid self-test outcome
     assert rc in (0, 1)
     assert report["knowledge_base"]["anti_patterns"] > 0
+
+
+# ---------------------------------------------------------------------------
+# contributor subcommand (issue #106)
+# ---------------------------------------------------------------------------
+
+
+def test_contributor_subcommand_is_registered():
+    """contributor_view shipped as a module + MCP tool but had no CLI entry (issue #106)."""
+    assert "contributor" in SUBCOMMANDS
+
+
+@patch("prgenius.contributor_view.contributor_view")
+def test_contributor_subcommand_calls_contributor_view(mock_cv):
+    """contributor passes the CLI args through, including diff_stat."""
+    mock_cv.return_value = {
+        "persona": "contributor",
+        "repo": "org/repo",
+        "title": "fix: x",
+        "action": "READY_TO_SUBMIT",
+        "action_label": "Ready to submit",
+        "action_icon": "\u2705",
+        "reason": "fine",
+        "next_step": "open the PR",
+        "checklist": [],
+        "confidence": 0.9,
+        "merge_probability": 0.8,
+    }
+    with patch("prgenius.cli._get_repo_root") as mock_root:
+        mock_root.return_value = Path("/kb")
+        rc = main([
+            "contributor", "fix: x", "--repo", "org/repo",
+            "--body", "Fixes #1", "--diff-stat", "a.py | 12 +",
+        ])
+    assert rc == 0
+    kwargs = mock_cv.call_args.kwargs
+    assert kwargs["title"] == "fix: x"
+    assert kwargs["repo"] == "org/repo"
+    assert kwargs["diff_stat"] == "a.py | 12 +", "diff_stat must reach the engine — it is the PR-size signal"
+    assert kwargs["repo_root"] == Path("/kb")
+
+
+def test_contributor_checklist_renders_fields_not_dict_repr(capsys):
+    """A checklist row is {item, command, priority}; str() would print the dict."""
+    with patch("prgenius.contributor_view.contributor_view") as mock_cv, \
+         patch("prgenius.cli._get_repo_root") as mock_root:
+        mock_root.return_value = Path("/kb")
+        mock_cv.return_value = {
+            "persona": "contributor", "repo": "org/repo", "title": "fix: x",
+            "action": "FIX_BEFORE_SUBMIT", "action_label": "Fix before submitting",
+            "action_icon": "\U0001f527", "reason": "r", "next_step": "n",
+            "checklist": [{"item": "Add tests", "command": "run pytest", "priority": "P1"}],
+            "confidence": 0.7, "merge_probability": 0.4,
+            "merge_probability_basis": "tier_estimate", "merge_probability_degraded": True,
+        }
+        rc = main(["contributor", "fix: x", "--repo", "org/repo"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "[P1] Add tests" in out
+    assert "run pytest" in out
+    assert "{" not in out.split("Checklist:", 1)[1].split("Confidence:", 1)[0], \
+        "checklist must not render as a Python dict"
+    assert "DEGRADED" in out, "a degraded merge estimate must say so"
