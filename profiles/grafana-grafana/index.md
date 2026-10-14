@@ -7,6 +7,7 @@ star: 75638
 language: Go
 status: research-only
 analyzed_at: 2026-07-15
+needs_reverify: true   # 分析已超期，尚未复验 —— 不刷新 analyzed_at 来消音
 data_source: coach smoke test analysis
 agent_guidelines:
   external_merge_rate: 0.67
