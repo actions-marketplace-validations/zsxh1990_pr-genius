@@ -6,7 +6,7 @@ from pathlib import Path
 from prgenius.evaluator import (
     analyze_pr,
     check_anti_patterns,
-    load_anti_patterns,
+    load_anti_patterns, load_pr_observations,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -132,10 +132,31 @@ class TestAntiPatternMatching:
         assert "duplicate-pr-same-author" in keys
 
     def test_json_patterns_marked(self):
-        """JSON patterns should be marked with _is_json_pattern."""
+        """Failed-PR observations are NOT anti-patterns and are not loaded as them.
+
+        This test used to assert the opposite — that `load_anti_patterns`
+        returned 190 JSON records tagged `_is_json_pattern`. Those records are
+        structured observations of failed PRs (repo, author, merged, signals),
+        with no lesson and no fix_action. Counting them in the anti-pattern
+        corpus made it 251 entries of which 190 could never fire, so every
+        coverage figure needed a footnote explaining its own denominator.
+
+        They now live in `pr-observations/`, read by `load_pr_observations()`.
+        Keeping the old name on purpose: someone searching for the JSON-pattern
+        behaviour lands on the explanation instead of restoring it.
+        """
         patterns = load_anti_patterns(REPO_ROOT)
-        json_patterns = [p for p in patterns.values() if p.get("_is_json_pattern")]
-        assert len(json_patterns) > 0
+        assert not any(p.get("_is_json_pattern") for p in patterns.values()), (
+            "anti-patterns/ holds anti-patterns; PR observations belong in pr-observations/"
+        )
+
+        observations = load_pr_observations(REPO_ROOT)
+        assert len(observations) > 0, "pr-observations/ should still hold the failed-PR records"
+        assert all("id" in o for o in observations), "observations keep their structured shape"
+        # They are a dataset of things that did not land — that is the point.
+        assert all(o.get("merged") is False for o in observations), (
+            "pr-observations records PRs that failed; a merged one would be the wrong corpus"
+        )
 
     def test_check_anti_patterns(self):
         """Should check anti-patterns against PR."""
