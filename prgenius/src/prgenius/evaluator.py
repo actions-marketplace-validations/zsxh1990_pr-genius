@@ -299,32 +299,55 @@ def load_anti_patterns(repo_root) -> Dict[str, dict]:
             logger.warning("Skipping malformed anti-pattern file %s: %s", file, exc)
             continue
 
-    # Load JSON patterns (from API/automation)
-    # v1.6.3 修复: JSON patterns 仅用于 search_patterns() 查询,
-    # 不参与 check_anti_patterns() 匹配 — 标题提取的 keywords 太泛化导致假阳性
-    import json as _json
-    for file in anti_patterns_dir.glob("*.json"):
-        try:
-            data = _json.loads(file.read_text(encoding="utf-8"))
-            if isinstance(data, dict) and "id" in data:
-                fm = {
-                    "key": data.get("id", file.stem),
-                    "description": data.get("title", data.get("description", "")),
-                    "trigger_keywords": [],  # JSON patterns 不提取 keywords — 避免假阳性
-                    "symptom": "",
-                    "fix_action": "",
-                    "source_pr": data.get("source_pr", ""),
-                    "source_url": data.get("source_url", ""),
-                    "_is_json_pattern": True,  # 标记来源, check_anti_patterns 跳过
-                }
-                patterns[file.stem] = fm
-        except Exception as exc:
-            logger.warning("Skipping malformed anti-pattern JSON file %s: %s", file, exc)
-            continue
+    # JSON records used to live here too. They never were anti-patterns: each is
+    # a structured observation of a **failed** PR (repo, author, merged, and a
+    # signals block with has_issue_link / additions / review_count …), with no
+    # lesson and no fix_action. Loading them here made the anti-pattern corpus
+    # 251 entries of which 190 could never fire, and every coverage number
+    # needed a footnote explaining the denominator. They now live in
+    # `pr-observations/` and are read by `load_pr_observations()`.
 
     mtimes = _collect_pattern_mtimes(anti_patterns_dir)
     _anti_patterns_cache[cache_key] = (patterns, mtimes, time.monotonic())
     return patterns
+
+
+
+_pr_observations_cache: dict = {}
+
+
+def load_pr_observations(repo_root) -> List[dict]:
+    """Load `pr-observations/` — structured records of **failed** PRs.
+
+    These are not anti-patterns and are deliberately not loaded by
+    `load_anti_patterns`. Each record is one PR that did not land, with the
+    observable signals at the time (issue link present, size, review count,
+    category: closed_rejected / closed_duplicate / closed_already_done).
+
+    They are the negative class for pattern mining — the raw evidence from
+    which an anti-pattern is derived — and they carry no lesson of their own.
+    Kept and loaded separately so the anti-pattern corpus stays a set of things
+    that can actually fire.
+    """
+    repo_root = Path(repo_root) if not isinstance(repo_root, Path) else repo_root
+    cache_key = str(repo_root)
+    if cache_key in _pr_observations_cache:
+        return _pr_observations_cache[cache_key]
+
+    import json as _json
+    obs_dir = repo_root / "pr-observations"
+    out: List[dict] = []
+    if obs_dir.is_dir():
+        for file in sorted(obs_dir.glob("*.json")):
+            try:
+                data = _json.loads(file.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                logger.warning("Skipping unreadable PR observation %s: %s", file, exc)
+                continue
+            if isinstance(data, dict) and "id" in data:
+                out.append(data)
+    _pr_observations_cache[cache_key] = out
+    return out
 
 
 # Generic words that appear in almost any PR — skip to avoid false positives

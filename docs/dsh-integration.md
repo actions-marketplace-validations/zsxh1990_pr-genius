@@ -27,7 +27,7 @@ DeepSeek Harness (DSH, ⭐108k+) is an open-source AI coding agent built on the 
 | Task planning, testing | Coach mode for iterative PR improvement |
 | File search, linting | Harvest mode to extract reusable lessons |
 | — | Profile-driven context (project-specific rules) |
-| — | 251 anti-pattern rules, 692 success patterns |
+| — | 61 anti-pattern rules, 692 success patterns |
 
 ## Setup
 

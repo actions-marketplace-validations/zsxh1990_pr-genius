@@ -33,18 +33,19 @@ SAMPLE_TITLE = "feat: add new feature"
 
 
 def _count_anti_patterns(repo_root: Path) -> tuple[int, int, int]:
-    """Return (total, with_trigger_keywords, json_only)."""
+    """Return (total, with_trigger_keywords).
+
+    Only markdown anti-patterns are counted now. The 190 structured PR
+    observations that used to be loaded alongside them live in
+    `pr-observations/` and are reported separately — mixing the two made every
+    coverage number need a footnote about its denominator.
+    """
     from .evaluator import load_anti_patterns
 
     patterns = load_anti_patterns(repo_root)
     total = len(patterns)
-    json_only = sum(1 for p in patterns.values() if p.get("_is_json_pattern"))
-    with_kw = sum(
-        1
-        for p in patterns.values()
-        if not p.get("_is_json_pattern") and p.get("trigger_keywords")
-    )
-    return total, with_kw, json_only
+    with_kw = sum(1 for p in patterns.values() if p.get("trigger_keywords"))
+    return total, with_kw
 
 
 def _count_success_patterns(repo_root: Path) -> int:
@@ -168,7 +169,9 @@ def run_doctor(repo_root: Optional[Path] = None) -> dict:
 
     root = Path(repo_root) if repo_root else get_repo_root()
 
-    anti_total, anti_with_kw, anti_json = _count_anti_patterns(root)
+    anti_total, anti_with_kw = _count_anti_patterns(root)
+    from .evaluator import load_pr_observations
+    pr_obs_total = len(load_pr_observations(root))
     success_total = _count_success_patterns(root)
 
     kb = {
@@ -180,7 +183,7 @@ def run_doctor(repo_root: Optional[Path] = None) -> dict:
         "readable": (root / "anti-patterns").is_dir(),
         "anti_patterns": anti_total,
         "anti_patterns_with_trigger_keywords": anti_with_kw,
-        "anti_patterns_json_only": anti_json,
+        "pr_observations": pr_obs_total,
         "success_patterns": success_total,
         "profiles": _count_dirs(root, "profiles"),
         "case_studies": _count_case_studies(root),
@@ -214,22 +217,19 @@ def run_doctor(repo_root: Optional[Path] = None) -> dict:
             )
         else:
             warnings.append(f"knowledge base not readable at {root} (anti-patterns/ missing)")
-    missing_kw = anti_total - anti_with_kw - anti_json
+    missing_kw = anti_total - anti_with_kw
     if missing_kw > 0:
-        # 分母是 md 模式数，不是总数：JSON 模式**有意**不带 trigger_keywords
-        # (evaluator.load_anti_patterns: "JSON patterns 不提取 keywords — 避免假阳性",
-        # 且 check_anti_patterns 直接跳过它们)。把它们算进"缺关键词"会把 6 说成 196，
-        # 也会让 6/251 看起来像"只有 2.4% 有问题"而实际是 6/61。
+        # 分母就是 anti-patterns/ 里的 md 模式数。PR 观测集在 pr-observations/,
+        # 不进这个分母 —— 它们不是反模式, 没有 lesson, 也不参与匹配。
         md_total = anti_with_kw + missing_kw
         warnings.append(
             f"{missing_kw}/{md_total} keyword-based anti-patterns have no trigger_keywords "
             "(they can never match a PR)"
         )
-        if anti_json:
+        if pr_obs_total:
             warnings.append(
-                f"{anti_json}/{anti_total} anti-patterns are JSON/imported records kept as "
-                "reference only — deliberately keyword-free and skipped by the matcher, "
-                "so they never fire by design (not a defect)"
+                f"{pr_obs_total} PR observations (pr-observations/) are records of failed PRs "
+                "kept for pattern mining — not anti-patterns, and not counted in the denominator"
             )
     if success_total > 0:
         warnings.append(

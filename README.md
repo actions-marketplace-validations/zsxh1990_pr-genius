@@ -12,7 +12,7 @@ mcp-name: io.github.zsxh1990/pr-genius
 
 # PR Genius — The advisor that knows which PRs get closed
 
-> **943 loaded patterns across 67 repos.**
+> **753 loaded patterns across 67 repos**, plus 190 PR observations kept for pattern mining.
 > (Trigger coverage — how often rules fire on real PRs — is measured separately by
 > `scripts/measure_pattern_coverage.py`, issue #66. There is no "quality pass rate"
 > claim here: it is not measurable for the current set, so it is not asserted.)
@@ -59,9 +59,9 @@ PR Genius is also a **DSH (Cordis) plugin** that slots into the DeepSeek Harness
 
 | Capability | LLM directly | Scraper Agent | PR Genius |
 |------------|-------------|---------------|-----------|
-| Knowledge source | Training data | Real-time scrape | 943 structured patterns |
+| Knowledge source | Training data | Real-time scrape | 753 structured patterns |
 | Repo understanding | Generic | Surface data (stars) | 17-field agent_guidelines |
-| Failure patterns | Unknown | Unknown | 251 anti-patterns |
+| Failure patterns | Unknown | Unknown | 61 anti-patterns |
 | Success patterns | Unknown | Unknown | 692 patterns — retrieval/reference only, not wired into scoring (issue #69) |
 | Maintainer preference | Guess | Recent PRs | Structured policy files |
 | Merge probability | Can't estimate | Can't estimate | Based on repo merge rate + signals |
@@ -387,8 +387,9 @@ row in the [MCP tools](#-mcp-configuration) table.
 | Repo profiles | 67 |
 | Case studies | 53 |
 | Success patterns | 692 (436 .md + 256 .json) |
-| Anti-patterns | 251 (61 .md + 190 .json) |
-| Total patterns | 943 (all loaded) |
+| Anti-patterns | 61 (all .md) |
+| PR observations | 190 (structured records of failed PRs, `pr-observations/`) |
+| Total patterns | 753 (61 anti + 692 success) |
 | Covered repos | 67 (uv, react, kubernetes, transformers, httpx, etc.) |
 
 ## 🤖 Robots / Agents
